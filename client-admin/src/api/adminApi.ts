@@ -58,14 +58,28 @@ export async function updateCountries(payload: AdminCountryRow[]): Promise<Admin
   return saveAndReturn(COUNTRIES_KEY, data);
 }
 
-export async function createCountry(payload: { code: string }): Promise<AdminCountryRow> {
-  const { data } = await http.post<AdminCountryRow>("/countries", payload);
+export async function createCountry(payload: {
+  code: string;
+  defaultName: string;
+  enabledForGenerator?: boolean;
+}): Promise<AdminCountryRow> {
+  await http.post("/countries/localizations", {
+    code: payload.code,
+    default_name: payload.defaultName,
+  });
+
+  const created: AdminCountryRow = {
+    code: payload.code.trim().toUpperCase(),
+    enabledForGenerator: payload.enabledForGenerator ?? true,
+    localizations: [],
+  };
+
   const countries = await getCountries();
   saveAndReturn(
     COUNTRIES_KEY,
-    [...countries.filter((item) => item.code !== data.code), data].sort((a, b) => a.code.localeCompare(b.code))
+    [...countries.filter((item) => item.code !== created.code), created].sort((a, b) => a.code.localeCompare(b.code))
   );
-  return data;
+  return created;
 }
 
 export async function deleteCountry(code: string): Promise<void> {
