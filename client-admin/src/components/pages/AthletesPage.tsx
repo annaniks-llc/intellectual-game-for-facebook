@@ -1,19 +1,31 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { createAthlete, deleteAthlete, getAthletes } from "../../api/adminApi";
+import {
+  createAthlete,
+  deleteAthlete,
+  getAthleteTeamOptions,
+  getAthletes,
+  type AthleteTeamOption,
+} from "../../api/adminApi";
+import AddAthleteForm, { type AddAthleteFormValues } from "../athletes/AddAthleteForm";
 import type { Athlete } from "../../types";
 
 export default function AthletesPage() {
   const [athletes, setAthletes] = useState<Athlete[]>([]);
+  const [teamOptions, setTeamOptions] = useState<AthleteTeamOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     void (async () => {
       setLoading(true);
       setError(null);
       try {
-        setAthletes(await getAthletes());
+        const [athletesData, teamsData] = await Promise.all([getAthletes(), getAthleteTeamOptions()]);
+        setAthletes(athletesData);
+        setTeamOptions(teamsData);
       } catch {
         setError("Failed to load athletes.");
       } finally {
@@ -22,24 +34,23 @@ export default function AthletesPage() {
     })();
   }, []);
 
-  async function onAddAthlete() {
-    const firstName = window.prompt("Athlete first name");
-    const lastName = window.prompt("Athlete last name");
-    const teamId = window.prompt("Team ID");
-    const position = window.prompt("Position code (GK/DF/MF/FW)", "FW");
-    if (!firstName?.trim() || !lastName?.trim() || !teamId?.trim() || !position?.trim()) return;
+  async function onAddAthlete(values: AddAthleteFormValues) {
+    setAdding(true);
     setError(null);
     try {
       const created = await createAthlete({
-        canonicalFirstName: firstName.trim(),
-        canonicalLastName: lastName.trim(),
-        teamId: teamId.trim(),
-        position: position.trim(),
-        active: true,
+        firstName: values.firstName,
+        lastName: values.lastName,
+        teamId: values.teamId,
+        positionCode: values.positionCode,
+        active: values.active,
       });
-      setAthletes((curr) => [...curr, created]);
+      setAthletes((curr) => [...curr.filter((item) => item.id !== created.id), created]);
+      setShowAddForm(false);
     } catch {
       setError("Failed to create athlete.");
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -58,10 +69,22 @@ export default function AthletesPage() {
     <section className="panel">
       <h2>Athletes</h2>
       <div className="h-row">
-        <button type="button" onClick={() => void onAddAthlete()} disabled={loading}>
-          Add athlete
-        </button>
+        {!showAddForm ? (
+          <button type="button" onClick={() => setShowAddForm(true)} disabled={loading}>
+            Add athlete
+          </button>
+        ) : null}
       </div>
+
+      <AddAthleteForm
+        open={showAddForm}
+        disabled={loading}
+        submitting={adding}
+        teamOptions={teamOptions}
+        onSubmit={(values) => void onAddAthlete(values)}
+        onCancel={() => setShowAddForm(false)}
+      />
+
       {error ? <p className="error-text">{error}</p> : null}
       {loading ? <p>Loading...</p> : null}
       <table className="table">

@@ -145,17 +145,61 @@ export async function updateAthleteLocalizations(id: string, payload: Athlete["l
   return data;
 }
 
+export type AthleteTeamOption = {
+  id: number;
+  label: string;
+};
+
+type TeamApiRow = {
+  id: number;
+  name: string;
+  country_code?: string | null;
+};
+
+export const ATHLETE_POSITION_OPTIONS = [
+  { code: "GK", label: "Goalkeeper" },
+  { code: "DF", label: "Defender" },
+  { code: "MF", label: "Midfielder" },
+  { code: "FW", label: "Forward" },
+] as const;
+
+export async function getAthleteTeamOptions(): Promise<AthleteTeamOption[]> {
+  const { data } = await http.get<TeamApiRow[]>("/teams");
+  return data.map((row) => ({
+    id: row.id,
+    label: row.country_code ? `${row.name} (${row.country_code})` : String(row.name),
+  }));
+}
+
 export async function createAthlete(payload: {
-  canonicalFirstName: string;
-  canonicalLastName: string;
-  teamId: string;
-  position: string;
+  firstName: string;
+  lastName: string;
+  teamId: number;
+  positionCode: string;
   active: boolean;
 }): Promise<Athlete> {
-  const { data } = await http.post<Athlete>("/athletes", payload);
+  const { data } = await http.post<{ ok: true; id: number }>("/athletes", {
+    team_id: payload.teamId,
+    first_name: payload.firstName,
+    last_name: payload.lastName,
+    position_code: payload.positionCode,
+    is_active: payload.active,
+  });
+
+  const created: Athlete = {
+    id: String(data.id),
+    canonicalFirstName: payload.firstName,
+    canonicalLastName: payload.lastName,
+    teamId: String(payload.teamId),
+    position: payload.positionCode,
+    active: payload.active,
+    localizations: [],
+    photos: [],
+  };
+
   const athletes = await getAthletes();
-  saveAndReturn(ATHLETES_KEY, [...athletes, data]);
-  return data;
+  saveAndReturn(ATHLETES_KEY, [...athletes.filter((athlete) => athlete.id !== created.id), created]);
+  return created;
 }
 
 export async function deleteAthlete(id: string): Promise<void> {
