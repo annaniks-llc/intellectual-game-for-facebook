@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createCountry, deleteCountry, getCountries, getLocales, updateCountries } from "../../api/adminApi";
+import AddCountryForm, { type AddCountryFormValues } from "../countries/AddCountryForm";
 import type { AdminCountryRow, ContentLocale } from "../../types";
 
 export default function CountriesPage() {
@@ -8,6 +9,8 @@ export default function CountriesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -39,16 +42,21 @@ export default function CountriesPage() {
     }
   }
 
-  async function onAddCountry() {
-    const codeInput = window.prompt("Country code (ISO-2), e.g. AR");
-    const code = codeInput?.trim().toUpperCase();
-    if (!code) return;
+  async function onAddCountry(values: AddCountryFormValues) {
+    setAdding(true);
     setError(null);
     try {
-      const created = await createCountry({ code });
-      setCountries((curr) => [...curr, created]);
+      const created = await createCountry({
+        code: values.code,
+        defaultName: values.defaultName,
+        enabledForGenerator: values.enabledForGenerator,
+      });
+      setCountries((curr) => [...curr.filter((item) => item.code !== created.code), created]);
+      setShowAddForm(false);
     } catch {
       setError("Failed to create country.");
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -67,10 +75,22 @@ export default function CountriesPage() {
     <section className="panel">
       <h2>Countries</h2>
       <div className="h-row">
-        <button type="button" onClick={() => void onAddCountry()} disabled={loading}>
-          Add country
-        </button>
+        {!showAddForm ? (
+          <button type="button" onClick={() => setShowAddForm(true)} disabled={loading}>
+            Add country
+          </button>
+        ) : null}
       </div>
+
+      <AddCountryForm
+        open={showAddForm}
+        disabled={loading}
+        submitting={adding}
+        existingCodes={countries.map((country) => country.code)}
+        onSubmit={(values) => void onAddCountry(values)}
+        onCancel={() => setShowAddForm(false)}
+      />
+
       {error ? <p className="error-text">{error}</p> : null}
       {loading ? <p>Loading...</p> : null}
       <table className="table">
