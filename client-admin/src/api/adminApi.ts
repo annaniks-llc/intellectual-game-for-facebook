@@ -6,15 +6,7 @@ const LOCALES_KEY = "locales";
 const COUNTRIES_KEY = "countries";
 const TEAMS_KEY = "teams";
 const ATHLETES_KEY = "athletes";
-const POSITIONS_KEY = "positions";
 const TEMPLATES_KEY = "templates";
-
-const defaultPositions: Position[] = [
-  { id: "position_gk", code: "GK", label: "Goalkeeper" },
-  { id: "position_df", code: "DF", label: "Defender" },
-  { id: "position_mf", code: "MF", label: "Midfielder" },
-  { id: "position_fw", code: "FW", label: "Forward" },
-];
 
 const defaultTemplates: Template[] = [
   { id: "template_1", name: "Top Scorer", prompt: "Who is the top scorer for {team}?", active: true },
@@ -193,29 +185,53 @@ export async function updateAthletePhotos(id: string, payload: AthletePhoto[]): 
   return data;
 }
 
+type PositionLabelRow = {
+  id: number;
+  position_code: string;
+  label: string;
+  locale_code: string;
+};
+
 export async function getPositions(): Promise<Position[]> {
-  const fromStorage = readStorage<Position[]>(POSITIONS_KEY);
-  if (fromStorage !== null) return fromStorage;
-  return saveAndReturn(POSITIONS_KEY, defaultPositions);
+  const { data } = await http.get<PositionLabelRow[]>("/position-labels");
+  return data
+    .map((row) => ({
+      id: String(row.id),
+      code: row.position_code,
+      label: row.label,
+      localeCode: row.locale_code,
+    }))
+    .sort((a, b) => a.code.localeCompare(b.code) || a.localeCode.localeCompare(b.localeCode));
 }
 
-export async function createPosition(payload: Pick<Position, "code" | "label">): Promise<Position> {
-  const positions = await getPositions();
-  const created: Position = { id: makeId("position"), code: payload.code, label: payload.label };
-  saveAndReturn(POSITIONS_KEY, [...positions, created]);
-  return created;
+export async function createPosition(payload: {
+  code: string;
+  label: string;
+  localeCode: string;
+}): Promise<Position> {
+  const { data } = await http.post<{ ok: true; id: number }>("/position-labels", {
+    position_code: payload.code,
+    locale_code: payload.localeCode,
+    label: payload.label,
+  });
+
+  return {
+    id: String(data.id),
+    code: payload.code.trim().toUpperCase(),
+    label: payload.label.trim(),
+    localeCode: payload.localeCode,
+  };
 }
 
 export async function updatePositions(payload: Position[]): Promise<Position[]> {
-  return saveAndReturn(POSITIONS_KEY, payload);
-}
-
-export async function deletePosition(id: string): Promise<void> {
-  const positions = await getPositions();
-  saveAndReturn(
-    POSITIONS_KEY,
-    positions.filter((position) => position.id !== id)
-  );
+  for (const position of payload) {
+    await http.post("/position-labels", {
+      position_code: position.code,
+      locale_code: position.localeCode,
+      label: position.label,
+    });
+  }
+  return getPositions();
 }
 
 export async function getTemplates(): Promise<Template[]> {
