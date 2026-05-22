@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createTemplate, deleteTemplate, getTemplates, updateTemplates } from "../../api/adminApi";
+import AddTemplateForm, { type AddTemplateFormValues } from "../templates/AddTemplateForm";
 import type { Template } from "../../types";
 
 export default function TemplatesPage() {
@@ -7,6 +8,7 @@ export default function TemplatesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -22,14 +24,12 @@ export default function TemplatesPage() {
     })();
   }, []);
 
-  async function onAddTemplate() {
-    const name = window.prompt("Template name")?.trim();
-    const prompt = window.prompt("Template prompt")?.trim();
-    if (!name || !prompt) return;
+  function onAddTemplate(values: AddTemplateFormValues) {
     setError(null);
     try {
-      const created = await createTemplate({ name, prompt, active: true });
+      const created = createTemplate(values);
       setTemplates((curr) => [...curr, created]);
+      setShowAddForm(false);
     } catch {
       setError("Failed to create template.");
     }
@@ -61,11 +61,23 @@ export default function TemplatesPage() {
   return (
     <section className="panel">
       <h2>Templates</h2>
+      <p>Question templates are stored in this browser until a server API is added.</p>
       <div className="h-row">
-        <button type="button" onClick={() => void onAddTemplate()} disabled={loading}>
-          Add template
-        </button>
+        {!showAddForm ? (
+          <button type="button" onClick={() => setShowAddForm(true)} disabled={loading}>
+            Add template
+          </button>
+        ) : null}
       </div>
+
+      <AddTemplateForm
+        open={showAddForm}
+        disabled={loading}
+        existingNames={templates.map((template) => template.name)}
+        onSubmit={onAddTemplate}
+        onCancel={() => setShowAddForm(false)}
+      />
+
       {error ? <p className="error-text">{error}</p> : null}
       {loading ? <p>Loading...</p> : null}
       <table className="table">
