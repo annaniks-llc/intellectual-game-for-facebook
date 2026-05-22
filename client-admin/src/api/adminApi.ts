@@ -11,6 +11,16 @@ const TEMPLATES_KEY = "templates";
 const defaultTemplates: Template[] = [
   { id: "template_1", name: "Top Scorer", prompt: "Who is the top scorer for {team}?", active: true },
   { id: "template_2", name: "Nationality", prompt: "Which country does {athlete} represent?", active: true },
+  
+const LEGACY_DEFAULT_TEMPLATE_IDS = new Set(["template_1", "template_2"]);
+
+const LEGACY_DEFAULT_TEMPLATE_NAMES = new Set(["top scorer", "nationality"]);
+
+const defaultPositions: Position[] = [
+  { id: "position_gk", code: "GK", label: "Goalkeeper" },
+  { id: "position_df", code: "DF", label: "Defender" },
+  { id: "position_mf", code: "MF", label: "Midfielder" },
+  { id: "position_fw", code: "FW", label: "Forward" },
 ];
 
 async function withStorageFallback<T>(key: string, request: () => Promise<T>): Promise<T> {
@@ -234,10 +244,22 @@ export async function updatePositions(payload: Position[]): Promise<Position[]> 
   return getPositions();
 }
 
+function isLegacyDefaultTemplate(template: Template): boolean {
+  if (LEGACY_DEFAULT_TEMPLATE_IDS.has(template.id)) return true;
+  return LEGACY_DEFAULT_TEMPLATE_NAMES.has(template.name.trim().toLowerCase());
+}
+
+function withoutLegacyDefaultTemplates(templates: Template[]): Template[] {
+  return templates.filter((template) => !isLegacyDefaultTemplate(template));
+}
+
 export async function getTemplates(): Promise<Template[]> {
-  const fromStorage = readStorage<Template[]>(TEMPLATES_KEY);
-  if (fromStorage !== null) return fromStorage;
-  return saveAndReturn(TEMPLATES_KEY, defaultTemplates);
+  const stored = readStorage<Template[]>(TEMPLATES_KEY) ?? [];
+  const templates = withoutLegacyDefaultTemplates(stored);
+  if (templates.length !== stored.length) {
+    writeStorage(TEMPLATES_KEY, templates);
+  }
+  return templates;
 }
 
 export async function createTemplate(payload: Pick<Template, "name" | "prompt" | "active">): Promise<Template> {
@@ -253,7 +275,7 @@ export async function createTemplate(payload: Pick<Template, "name" | "prompt" |
 }
 
 export async function updateTemplates(payload: Template[]): Promise<Template[]> {
-  return saveAndReturn(TEMPLATES_KEY, payload);
+  return saveAndReturn(TEMPLATES_KEY, withoutLegacyDefaultTemplates(payload));
 }
 
 export async function deleteTemplate(id: string): Promise<void> {
