@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getLocales, updateLocales } from "../../api/adminApi";
+import { deleteLocale, getLocales, updateLocales } from "../../api/adminApi";
 import AddLocaleForm, { type AddLocaleFormValues } from "../locales/AddLocaleForm";
 import type { ContentLocale } from "../../types";
 
@@ -50,8 +50,15 @@ export default function LocalesPage() {
     setShowAddForm(false);
   }
 
-  function onDeleteLocale(code: string) {
-    setLocales((curr) => curr.filter((item) => item.code !== code));
+  async function onDeleteLocale(code: string) {
+    if (!window.confirm(`Delete locale ${code}?`)) return;
+    setError(null);
+    try {
+      await deleteLocale(code);
+      setLocales((curr) => curr.filter((item) => item.code !== code));
+    } catch {
+      setError("Failed to delete locale.");
+    }
   }
 
   return (
@@ -109,7 +116,7 @@ export default function LocalesPage() {
                 />
               </td>
               <td>
-                <button type="button" className="ghost" onClick={() => onDeleteLocale(locale.code)}>
+                <button type="button" className="ghost" onClick={() => void onDeleteLocale(locale.code)}>
                   Delete
                 </button>
               </td>

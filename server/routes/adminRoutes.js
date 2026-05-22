@@ -17,18 +17,23 @@ export function createAdminRoutes(db) {
 
   router.get("/locales", admin.adminGuard, content.listLocales);
   router.post("/locales", admin.adminGuard, content.upsertLocale);
+  router.delete("/locales/:code", admin.adminGuard, content.deleteLocale);
 
   router.get("/countries/localizations", admin.adminGuard, content.listCountries);
   router.post("/countries/localizations", admin.adminGuard, content.upsertCountry);
+  router.delete("/countries/:code", admin.adminGuard, content.deleteCountry);
 
   router.get("/teams", admin.adminGuard, content.listTeams);
   router.post("/teams", admin.adminGuard, content.createTeam);
+  router.delete("/teams/:id", admin.adminGuard, content.deleteTeam);
 
   router.get("/athletes", admin.adminGuard, content.listAthletes);
   router.post("/athletes", admin.adminGuard, content.createAthlete);
+  router.delete("/athletes/:id", admin.adminGuard, content.deleteAthlete);
 
   router.get("/position-labels", admin.adminGuard, content.listPositionLabels);
   router.post("/position-labels", admin.adminGuard, content.upsertPositionLabel);
+  router.delete("/position-labels/:id", admin.adminGuard, content.deletePositionLabel);
 
   // Admin-editable question/answer language records.
   router.get("/question-localizations", admin.adminGuard, content.listQuestionLocalizations);

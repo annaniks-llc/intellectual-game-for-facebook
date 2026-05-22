@@ -1,6 +1,11 @@
 import {
   createAthlete as createAthleteInDb,
   createTeam as createTeamInDb,
+  deleteAthleteById as deleteAthleteByIdInDb,
+  deleteCountryByCode as deleteCountryByCodeInDb,
+  deleteLocaleByCode as deleteLocaleByCodeInDb,
+  deletePositionLabelById as deletePositionLabelByIdInDb,
+  deleteTeamById as deleteTeamByIdInDb,
   findLocaleByCode,
   listAthletes as listAthletesFromDb,
   listCountries as listCountriesFromDb,
@@ -30,6 +35,17 @@ export function createAdminContentController(db) {
     return res.status(created ? 201 : 200).json({ ok: true, id });
   }
 
+  async function deleteLocale(req, res) {
+    const code = String(req.params.code || "")
+      .trim()
+      .toLowerCase();
+    if (!code) return res.status(400).json({ error: "code is required" });
+
+    const deleted = await deleteLocaleByCodeInDb(db, code);
+    if (!deleted) return res.status(404).json({ error: "locale not found" });
+    return res.json({ ok: true });
+  }
+
   async function listCountries(_req, res) {
     const rows = await listCountriesFromDb(db);
     res.json(rows);
@@ -42,6 +58,17 @@ export function createAdminContentController(db) {
 
     const { id, created } = await upsertCountryInDb(db, { code, defaultName });
     return res.status(created ? 201 : 200).json({ ok: true, id });
+  }
+
+  async function deleteCountry(req, res) {
+    const code = String(req.params.code || "")
+      .trim()
+      .toUpperCase();
+    if (code.length !== 2) return res.status(400).json({ error: "valid country code is required" });
+
+    const deleted = await deleteCountryByCodeInDb(db, code);
+    if (!deleted) return res.status(404).json({ error: "country not found" });
+    return res.json({ ok: true });
   }
 
   async function listTeams(_req, res) {
@@ -58,6 +85,15 @@ export function createAdminContentController(db) {
 
     const id = await createTeamInDb(db, { name, shortName, crestUrl, countryId });
     return res.status(201).json({ ok: true, id });
+  }
+
+  async function deleteTeam(req, res) {
+    const teamId = Number(req.params.id);
+    if (!teamId) return res.status(400).json({ error: "valid team id is required" });
+
+    const deleted = await deleteTeamByIdInDb(db, teamId);
+    if (!deleted) return res.status(404).json({ error: "team not found" });
+    return res.json({ ok: true });
   }
 
   async function listAthletes(_req, res) {
@@ -77,6 +113,15 @@ export function createAdminContentController(db) {
 
     const id = await createAthleteInDb(db, { teamId, firstName, lastName, positionCode, isActive });
     return res.status(201).json({ ok: true, id });
+  }
+
+  async function deleteAthlete(req, res) {
+    const athleteId = Number(req.params.id);
+    if (!athleteId) return res.status(400).json({ error: "valid athlete id is required" });
+
+    const deleted = await deleteAthleteByIdInDb(db, athleteId);
+    if (!deleted) return res.status(404).json({ error: "athlete not found" });
+    return res.json({ ok: true });
   }
 
   async function listPositionLabels(_req, res) {
@@ -101,6 +146,15 @@ export function createAdminContentController(db) {
       label,
     });
     return res.status(created ? 201 : 200).json({ ok: true, id });
+  }
+
+  async function deletePositionLabel(req, res) {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: "valid id is required" });
+
+    const deleted = await deletePositionLabelByIdInDb(db, id);
+    if (!deleted) return res.status(404).json({ error: "position label not found" });
+    return res.json({ ok: true });
   }
 
   async function listQuestionLocalizations(_req, res) {
@@ -132,14 +186,19 @@ export function createAdminContentController(db) {
   return {
     listLocales,
     upsertLocale,
+    deleteLocale,
     listCountries,
     upsertCountry,
+    deleteCountry,
     listTeams,
     createTeam,
+    deleteTeam,
     listAthletes,
     createAthlete,
+    deleteAthlete,
     listPositionLabels,
     upsertPositionLabel,
+    deletePositionLabel,
     listQuestionLocalizations,
     upsertQuestionLocalization,
   };

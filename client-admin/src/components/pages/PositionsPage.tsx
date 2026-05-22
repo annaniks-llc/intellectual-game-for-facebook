@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createPosition, getLocales, getPositions, updatePositions } from "../../api/adminApi";
+import { createPosition, deletePosition, getLocales, getPositions, updatePositions } from "../../api/adminApi";
 import AddPositionForm, { type AddPositionFormValues, type PositionLocaleOption } from "../positions/AddPositionForm";
 import type { ContentLocale, Position } from "../../types";
 
@@ -55,6 +55,17 @@ export default function PositionsPage() {
     }
   }
 
+  async function onDeletePosition(id: string) {
+    if (!window.confirm("Delete this position label?")) return;
+    setError(null);
+    try {
+      await deletePosition(id);
+      setPositions((curr) => curr.filter((item) => item.id !== id));
+    } catch {
+      setError("Failed to delete position.");
+    }
+  }
+
   async function onSave() {
     setSaving(true);
     setError(null);
@@ -101,6 +112,7 @@ export default function PositionsPage() {
             <th>Code</th>
             <th>Locale</th>
             <th>Label</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -124,6 +136,11 @@ export default function PositionsPage() {
                     setPositions((curr) => curr.map((item, i) => (i === index ? { ...item, label: e.target.value } : item)))
                   }
                 />
+              </td>
+              <td>
+                <button type="button" className="ghost" onClick={() => void onDeletePosition(position.id)}>
+                  Delete
+                </button>
               </td>
             </tr>
           ))}

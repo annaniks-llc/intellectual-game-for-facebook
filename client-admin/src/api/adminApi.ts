@@ -8,20 +8,10 @@ const TEAMS_KEY = "teams";
 const ATHLETES_KEY = "athletes";
 const TEMPLATES_KEY = "templates";
 
-const defaultTemplates: Template[] = [
-  { id: "template_1", name: "Top Scorer", prompt: "Who is the top scorer for {team}?", active: true },
-  { id: "template_2", name: "Nationality", prompt: "Which country does {athlete} represent?", active: true },
-  
+/** Seeded by an older client build; stripped on load so the list starts empty. */
 const LEGACY_DEFAULT_TEMPLATE_IDS = new Set(["template_1", "template_2"]);
 
 const LEGACY_DEFAULT_TEMPLATE_NAMES = new Set(["top scorer", "nationality"]);
-
-const defaultPositions: Position[] = [
-  { id: "position_gk", code: "GK", label: "Goalkeeper" },
-  { id: "position_df", code: "DF", label: "Defender" },
-  { id: "position_mf", code: "MF", label: "Midfielder" },
-  { id: "position_fw", code: "FW", label: "Forward" },
-];
 
 async function withStorageFallback<T>(key: string, request: () => Promise<T>): Promise<T> {
   const fromStorage = readStorage<T>(key);
@@ -36,6 +26,16 @@ function saveAndReturn<T>(key: string, data: T): T {
   return data;
 }
 
+function removeFromStorageCache<T>(key: string, shouldRemove: (item: T) => boolean): void {
+  const stored = readStorage<T[]>(key);
+  if (stored !== null) {
+    writeStorage(
+      key,
+      stored.filter((item) => !shouldRemove(item))
+    );
+  }
+}
+
 export async function getLocales(): Promise<ContentLocale[]> {
   return withStorageFallback(LOCALES_KEY, async () => {
     const { data } = await http.get<ContentLocale[]>("/locales");
@@ -46,6 +46,11 @@ export async function getLocales(): Promise<ContentLocale[]> {
 export async function updateLocales(payload: ContentLocale[]): Promise<ContentLocale[]> {
   const { data } = await http.patch<ContentLocale[]>("/locales", payload);
   return saveAndReturn(LOCALES_KEY, data);
+}
+
+export async function deleteLocale(code: string): Promise<void> {
+  await http.delete(`/locales/${encodeURIComponent(code)}`);
+  removeFromStorageCache<ContentLocale>(LOCALES_KEY, (locale) => locale.code.toLowerCase() === code.toLowerCase());
 }
 
 export async function getCountries(): Promise<AdminCountryRow[]> {
@@ -85,12 +90,8 @@ export async function createCountry(payload: {
 }
 
 export async function deleteCountry(code: string): Promise<void> {
-  await http.delete(`/countries/${code}`);
-  const countries = await getCountries();
-  saveAndReturn(
-    COUNTRIES_KEY,
-    countries.filter((item) => item.code !== code)
-  );
+  await http.delete(`/countries/${encodeURIComponent(code)}`);
+  removeFromStorageCache<AdminCountryRow>(COUNTRIES_KEY, (country) => country.code.toUpperCase() === code.toUpperCase());
 }
 
 export async function getTeams(): Promise<Team[]> {
@@ -168,11 +169,7 @@ export async function createTeam(payload: {
 
 export async function deleteTeam(id: string): Promise<void> {
   await http.delete(`/teams/${id}`);
-  const teams = await getTeams();
-  saveAndReturn(
-    TEAMS_KEY,
-    teams.filter((team) => team.id !== id)
-  );
+  removeFromStorageCache<Team>(TEAMS_KEY, (team) => team.id === id);
 }
 
 export async function getAthletes(): Promise<Athlete[]> {
@@ -259,11 +256,11 @@ export async function createAthlete(payload: {
 
 export async function deleteAthlete(id: string): Promise<void> {
   await http.delete(`/athletes/${id}`);
-  const athletes = await getAthletes();
-  saveAndReturn(
-    ATHLETES_KEY,
-    athletes.filter((athlete) => athlete.id !== id)
-  );
+  removeFromStorageCache<Athlete>(ATHLETES_KEY, (athlete) => athlete.id === id);
+}
+
+export async function deletePosition(id: string): Promise<void> {
+  await http.delete(`/position-labels/${id}`);
 }
 
 export async function getAthletePhotos(id: string): Promise<AthletePhoto[]> {

@@ -25,6 +25,11 @@ export async function upsertLocale(db, { code, name, isEnabled }) {
   return { id, created: true };
 }
 
+export async function deleteLocaleByCode(db, code) {
+  const deleted = await db("locales").where({ code }).delete();
+  return deleted > 0;
+}
+
 export function listCountries(db) {
   return db("countries").select("*").orderBy("id", "asc");
 }
@@ -47,6 +52,11 @@ export async function upsertCountry(db, { code, defaultName }) {
   return { id, created: true };
 }
 
+export async function deleteCountryByCode(db, code) {
+  const deleted = await db("countries").where({ code }).delete();
+  return deleted > 0;
+}
+
 export function listTeams(db) {
   return db("teams as t")
     .leftJoin("countries as c", "c.id", "t.country_id")
@@ -64,6 +74,11 @@ export async function createTeam(db, { name, shortName, crestUrl, countryId }) {
     updated_at: db.fn.now(),
   });
   return id;
+}
+
+export async function deleteTeamById(db, teamId) {
+  const deleted = await db("teams").where({ id: teamId }).delete();
+  return deleted > 0;
 }
 
 export function listAthletes(db) {
@@ -84,6 +99,11 @@ export async function createAthlete(db, { teamId, firstName, lastName, positionC
     updated_at: db.fn.now(),
   });
   return id;
+}
+
+export async function deleteAthleteById(db, athleteId) {
+  const deleted = await db("athletes").where({ id: athleteId }).delete();
+  return deleted > 0;
 }
 
 export function listPositionLabels(db) {
@@ -114,6 +134,11 @@ export async function upsertPositionLabel(db, { positionCode, localeId, label })
     updated_at: db.fn.now(),
   });
   return { id, created: true };
+}
+
+export async function deletePositionLabelById(db, id) {
+  const deleted = await db("position_labels").where({ id }).delete();
+  return deleted > 0;
 }
 
 export function listQuestionLocalizations(db) {
