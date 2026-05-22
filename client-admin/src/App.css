@@ -117,6 +117,7 @@ a:hover {
 }
 
 input,
+select,
 button {
   font: inherit;
 }
@@ -128,7 +129,8 @@ label {
   margin-bottom: 4px;
 }
 
-input {
+input,
+select {
   width: 100%;
   border: 1px solid #cbd5e1;
   border-radius: 10px;
@@ -138,7 +140,8 @@ input {
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: #93c5fd;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
   outline: none;

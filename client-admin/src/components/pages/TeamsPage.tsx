@@ -1,19 +1,25 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { createTeam, deleteTeam, getTeams } from "../../api/adminApi";
+import { createTeam, deleteTeam, getTeamCountryOptions, getTeams, type TeamCountryOption } from "../../api/adminApi";
+import AddTeamForm, { type AddTeamFormValues } from "../teams/AddTeamForm";
 import type { Team } from "../../types";
 
 export default function TeamsPage() {
   const [teams, setTeams] = useState<Team[]>([]);
+  const [countryOptions, setCountryOptions] = useState<TeamCountryOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     void (async () => {
       setLoading(true);
       setError(null);
       try {
-        setTeams(await getTeams());
+        const [teamsData, countriesData] = await Promise.all([getTeams(), getTeamCountryOptions()]);
+        setTeams(teamsData);
+        setCountryOptions(countriesData);
       } catch {
         setError("Failed to load teams.");
       } finally {
@@ -22,17 +28,23 @@ export default function TeamsPage() {
     })();
   }, []);
 
-  async function onAddTeam() {
-    const canonicalName = window.prompt("Team canonical name");
-    if (!canonicalName?.trim()) return;
-    const countryCode = window.prompt("Country code (ISO-2)", "US")?.trim().toUpperCase();
-    if (!countryCode) return;
+  async function onAddTeam(values: AddTeamFormValues) {
+    setAdding(true);
     setError(null);
     try {
-      const created = await createTeam({ canonicalName: canonicalName.trim(), countryCode });
-      setTeams((curr) => [...curr, created]);
+      const created = await createTeam({
+        name: values.name,
+        shortName: values.shortName || undefined,
+        crestUrl: values.crestUrl || undefined,
+        countryId: values.countryId,
+        countryCode: values.countryCode,
+      });
+      setTeams((curr) => [...curr.filter((item) => item.id !== created.id), created]);
+      setShowAddForm(false);
     } catch {
       setError("Failed to create team.");
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -51,10 +63,22 @@ export default function TeamsPage() {
     <section className="panel">
       <h2>Teams</h2>
       <div className="h-row">
-        <button type="button" onClick={() => void onAddTeam()} disabled={loading}>
-          Add team
-        </button>
+        {!showAddForm ? (
+          <button type="button" onClick={() => setShowAddForm(true)} disabled={loading}>
+            Add team
+          </button>
+        ) : null}
       </div>
+
+      <AddTeamForm
+        open={showAddForm}
+        disabled={loading}
+        submitting={adding}
+        countryOptions={countryOptions}
+        onSubmit={(values) => void onAddTeam(values)}
+        onCancel={() => setShowAddForm(false)}
+      />
+
       {error ? <p className="error-text">{error}</p> : null}
       {loading ? <p>Loading...</p> : null}
       <table className="table">
