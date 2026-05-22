@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getLocales, updateLocales } from "../../api/adminApi";
+import AddLocaleForm, { type AddLocaleFormValues } from "../locales/AddLocaleForm";
 import type { ContentLocale } from "../../types";
 
 export default function LocalesPage() {
@@ -7,6 +8,7 @@ export default function LocalesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -34,15 +36,18 @@ export default function LocalesPage() {
     }
   }
 
-  function onAddLocale() {
-    const codeInput = window.prompt("Locale code (BCP-47), e.g. en or hy-AM");
-    const code = codeInput?.trim();
-    if (!code) return;
-    if (locales.some((item) => item.code.toLowerCase() === code.toLowerCase())) {
-      setError("Locale already exists.");
-      return;
-    }
-    setLocales((curr) => [...curr, { code, enabled: true, isDefault: curr.length === 0 }]);
+  function onAddLocale(values: AddLocaleFormValues) {
+    setLocales((curr) => {
+      const isDefault = values.isDefault || curr.length === 0;
+      const next: ContentLocale = {
+        code: values.code,
+        enabled: values.enabled,
+        isDefault,
+      };
+      if (!isDefault) return [...curr, next];
+      return [...curr.map((l) => ({ ...l, isDefault: false })), next];
+    });
+    setShowAddForm(false);
   }
 
   function onDeleteLocale(code: string) {
@@ -54,10 +59,22 @@ export default function LocalesPage() {
       <h2>Content Locales</h2>
       <p>Manage enabled locales used in generated quiz content.</p>
       <div className="h-row">
-        <button type="button" onClick={onAddLocale} disabled={loading}>
-          Add locale
-        </button>
+        {!showAddForm ? (
+          <button type="button" onClick={() => setShowAddForm(true)} disabled={loading}>
+            Add locale
+          </button>
+        ) : null}
       </div>
+
+      <AddLocaleForm
+        open={showAddForm}
+        disabled={loading}
+        isFirstLocale={locales.length === 0}
+        existingCodes={locales.map((locale) => locale.code)}
+        onSubmit={onAddLocale}
+        onCancel={() => setShowAddForm(false)}
+      />
+
       {error ? <p className="error-text">{error}</p> : null}
       {loading ? <p>Loading...</p> : null}
       <table className="table">
