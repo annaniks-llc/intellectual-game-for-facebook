@@ -104,11 +104,52 @@ export async function updateTeam(id: string, payload: Team): Promise<Team> {
   return data;
 }
 
-export async function createTeam(payload: Pick<Team, "canonicalName" | "countryCode">): Promise<Team> {
-  const { data } = await http.post<Team>("/teams", payload);
+export type TeamCountryOption = {
+  id: number;
+  code: string;
+  label: string;
+};
+
+type CountryApiRow = {
+  id: number;
+  code: string;
+  default_name: string;
+};
+
+export async function getTeamCountryOptions(): Promise<TeamCountryOption[]> {
+  const { data } = await http.get<CountryApiRow[]>("/countries/localizations");
+  return data.map((row) => ({
+    id: row.id,
+    code: row.code,
+    label: row.default_name ? `${row.code} — ${row.default_name}` : row.code,
+  }));
+}
+
+export async function createTeam(payload: {
+  name: string;
+  shortName?: string;
+  crestUrl?: string;
+  countryId?: number | null;
+  countryCode?: string;
+}): Promise<Team> {
+  const { data } = await http.post<{ ok: true; id: number }>("/teams", {
+    name: payload.name,
+    short_name: payload.shortName?.trim() || undefined,
+    crest_url: payload.crestUrl?.trim() || undefined,
+    country_id: payload.countryId ?? undefined,
+  });
+
+  const created: Team = {
+    id: String(data.id),
+    canonicalName: payload.name,
+    crestUrl: payload.crestUrl?.trim() || undefined,
+    countryCode: payload.countryCode ?? "",
+    localizations: [],
+  };
+
   const teams = await getTeams();
-  saveAndReturn(TEAMS_KEY, [...teams, data]);
-  return data;
+  saveAndReturn(TEAMS_KEY, [...teams.filter((team) => team.id !== created.id), created]);
+  return created;
 }
 
 export async function deleteTeam(id: string): Promise<void> {
