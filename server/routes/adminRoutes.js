@@ -13,8 +13,6 @@ export function createAdminRoutes(db) {
   router.post("/auth/request-change-password-code", admin.adminGuard, admin.requestChangePasswordCode);
   router.post("/auth/change-password", admin.adminGuard, admin.changePassword);
 
-  router.get("/me", admin.adminGuard, admin.me);
-
   router.get("/locales", admin.adminGuard, content.listLocales);
   router.post("/locales", admin.adminGuard, content.upsertLocale);
   router.delete("/locales/:code", admin.adminGuard, content.deleteLocale);

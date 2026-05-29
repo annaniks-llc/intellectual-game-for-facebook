@@ -1,5 +1,13 @@
-import { http } from "./http";
+import { adminMeHttp, http } from "./http";
 import axios from "axios";
+
+export type AdminMeUser = {
+  id: number;
+  email: string;
+  role: string;
+};
+
+export type AdminMeResponse = { user: AdminMeUser | null };
 
 export type LoginRequest = { email: string; password: string };
 export type LoginResponse = { token: string; username: string };
@@ -48,6 +56,11 @@ export async function login(payload: LoginRequest): Promise<LoginResponse> {
     }
     throw error;
   }
+}
+
+export async function getAdminMe(): Promise<AdminMeResponse> {
+  const { data } = await adminMeHttp.get<AdminMeResponse>("/me");
+  return data;
 }
 
 export async function forgotPassword(payload: ForgotPasswordRequest): Promise<{ message: string }> {
