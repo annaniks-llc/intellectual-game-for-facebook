@@ -148,6 +148,41 @@ export function listQuestionLocalizations(db) {
     .orderBy("ql.question_key", "asc");
 }
 
+export function listQuestionTemplates(db) {
+  return db("question_templates").select("*").orderBy("id", "asc");
+}
+
+export async function upsertQuestionTemplate(db, { id, name, prompt, isActive }) {
+  if (id) {
+    const existing = await db("question_templates").where({ id }).first();
+    if (existing) {
+      await db("question_templates")
+        .where({ id })
+        .update({
+          name,
+          prompt,
+          is_active: isActive,
+          updated_at: db.fn.now(),
+        });
+      return { id: existing.id, created: false };
+    }
+  }
+
+  const [insertedId] = await db("question_templates").insert({
+    name,
+    prompt,
+    is_active: isActive,
+    created_at: db.fn.now(),
+    updated_at: db.fn.now(),
+  });
+  return { id: insertedId, created: true };
+}
+
+export async function deleteQuestionTemplateById(db, id) {
+  const deleted = await db("question_templates").where({ id }).delete();
+  return deleted > 0;
+}
+
 export async function upsertQuestionLocalization(db, { questionKey, localeId, questionText, answerText }) {
   const existing = await db("question_localizations")
     .where({ question_key: questionKey, locale_id: localeId })

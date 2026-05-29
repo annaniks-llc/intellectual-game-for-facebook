@@ -9,6 +9,7 @@ export default function TemplatesPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -24,14 +25,17 @@ export default function TemplatesPage() {
     })();
   }, []);
 
-  function onAddTemplate(values: AddTemplateFormValues) {
+  async function onAddTemplate(values: AddTemplateFormValues) {
+    setAdding(true);
     setError(null);
     try {
-      const created = createTemplate(values);
-      setTemplates((curr) => [...curr, created]);
+      const created = await createTemplate(values);
+      setTemplates((curr) => [...curr.filter((item) => item.id !== created.id), created]);
       setShowAddForm(false);
     } catch {
       setError("Failed to create template.");
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -61,7 +65,7 @@ export default function TemplatesPage() {
   return (
     <section className="panel">
       <h2>Templates</h2>
-      <p>Question templates are stored in this browser until a server API is added.</p>
+      <p>Question templates used to generate quiz content.</p>
       <div className="h-row">
         {!showAddForm ? (
           <button type="button" onClick={() => setShowAddForm(true)} disabled={loading}>
@@ -72,9 +76,9 @@ export default function TemplatesPage() {
 
       <AddTemplateForm
         open={showAddForm}
-        disabled={loading}
+        disabled={loading || adding}
         existingNames={templates.map((template) => template.name)}
-        onSubmit={onAddTemplate}
+        onSubmit={(values) => void onAddTemplate(values)}
         onCancel={() => setShowAddForm(false)}
       />
 

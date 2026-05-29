@@ -35,6 +35,10 @@ export function createAdminRoutes(db) {
   router.post("/position-labels", admin.adminGuard, content.upsertPositionLabel);
   router.delete("/position-labels/:id", admin.adminGuard, content.deletePositionLabel);
 
+  router.get("/templates", admin.adminGuard, content.listQuestionTemplates);
+  router.post("/templates", admin.adminGuard, content.upsertQuestionTemplate);
+  router.delete("/templates/:id", admin.adminGuard, content.deleteQuestionTemplate);
+
   // Admin-editable question/answer language records.
   router.get("/question-localizations", admin.adminGuard, content.listQuestionLocalizations);
   router.post("/question-localizations", admin.adminGuard, content.upsertQuestionLocalization);

@@ -1,24 +1,43 @@
 import { http } from "./http";
-import { makeId, readStorage, writeStorage } from "./storage";
+import {
+  applyDefaultLocale,
+  countryDefaultName,
+  localeToApiBody,
+  mapAthleteFromApi,
+  mapCountryFromApi,
+  mapPositionFromApi,
+  mapTeamFromApi,
+  mapTemplateFromApi,
+  mergeLocalesFromApi,
+  sortPositions,
+  templateToApiBody,
+  type AthleteApiRow,
+  type CountryApiRow,
+  type LocaleApiRow,
+  type PositionLabelApiRow,
+  type QuestionTemplateApiRow,
+  type TeamApiRow,
+} from "./adminContentMappers";
+import { readStorage, writeStorage } from "./storage";
 import type { AdminCountryRow, Athlete, AthletePhoto, ContentLocale, Position, Team, Template } from "../types";
 
 const LOCALES_KEY = "locales";
 const COUNTRIES_KEY = "countries";
 const TEAMS_KEY = "teams";
 const ATHLETES_KEY = "athletes";
+const POSITIONS_KEY = "positions";
 const TEMPLATES_KEY = "templates";
 
-/** Seeded by an older client build; stripped on load so the list starts empty. */
-const LEGACY_DEFAULT_TEMPLATE_IDS = new Set(["template_1", "template_2"]);
-
-const LEGACY_DEFAULT_TEMPLATE_NAMES = new Set(["top scorer", "nationality"]);
-
-async function withStorageFallback<T>(key: string, request: () => Promise<T>): Promise<T> {
-  const fromStorage = readStorage<T>(key);
-  if (fromStorage !== null) return fromStorage;
-  const data = await request();
-  writeStorage(key, data);
-  return data;
+async function fetchAndCache<T>(key: string, request: () => Promise<T>): Promise<T> {
+  try {
+    const data = await request();
+    writeStorage(key, data);
+    return data;
+  } catch {
+    const cached = readStorage<T>(key);
+    if (cached !== null) return cached;
+    throw new Error(`Failed to load ${key}`);
+  }
 }
 
 function saveAndReturn<T>(key: string, data: T): T {
@@ -36,16 +55,45 @@ function removeFromStorageCache<T>(key: string, shouldRemove: (item: T) => boole
   }
 }
 
+async function fetchLocalesFromApi(): Promise<ContentLocale[]> {
+  const { data } = await http.get<LocaleApiRow[]>("/locales");
+  const cached = readStorage<ContentLocale[]>(LOCALES_KEY);
+  return mergeLocalesFromApi(data, cached);
+}
+
 export async function getLocales(): Promise<ContentLocale[]> {
-  return withStorageFallback(LOCALES_KEY, async () => {
-    const { data } = await http.get<ContentLocale[]>("/locales");
-    return data;
-  });
+  return fetchAndCache(LOCALES_KEY, fetchLocalesFromApi);
+}
+
+export async function createLocale(payload: {
+  code: string;
+  enabled: boolean;
+  isDefault?: boolean;
+  name?: string;
+}): Promise<ContentLocale> {
+  const code = payload.code.trim().toLowerCase();
+  const locale: ContentLocale = {
+    code,
+    name: payload.name?.trim() || code,
+    enabled: payload.enabled,
+    isDefault: payload.isDefault ?? false,
+  };
+
+  await http.post("/locales", localeToApiBody(locale));
+
+  let locales = await fetchLocalesFromApi();
+  if (locale.isDefault) {
+    locales = applyDefaultLocale(locales, code);
+  }
+  saveAndReturn(LOCALES_KEY, locales);
+  return locales.find((item) => item.code === code) ?? locale;
 }
 
 export async function updateLocales(payload: ContentLocale[]): Promise<ContentLocale[]> {
-  const { data } = await http.patch<ContentLocale[]>("/locales", payload);
-  return saveAndReturn(LOCALES_KEY, data);
+  for (const locale of payload) {
+    await http.post("/locales", localeToApiBody(locale));
+  }
+  return saveAndReturn(LOCALES_KEY, payload);
 }
 
 export async function deleteLocale(code: string): Promise<void> {
@@ -53,16 +101,25 @@ export async function deleteLocale(code: string): Promise<void> {
   removeFromStorageCache<ContentLocale>(LOCALES_KEY, (locale) => locale.code.toLowerCase() === code.toLowerCase());
 }
 
+async function fetchCountriesFromApi(): Promise<AdminCountryRow[]> {
+  const { data } = await http.get<CountryApiRow[]>("/countries/localizations");
+  const cached = readStorage<AdminCountryRow[]>(COUNTRIES_KEY);
+  const cachedByCode = new Map((cached ?? []).map((country) => [country.code.toUpperCase(), country]));
+  return data.map((row) => mapCountryFromApi(row, cachedByCode.get(row.code.toUpperCase())));
+}
+
 export async function getCountries(): Promise<AdminCountryRow[]> {
-  return withStorageFallback(COUNTRIES_KEY, async () => {
-    const { data } = await http.get<AdminCountryRow[]>("/countries/localizations");
-    return data;
-  });
+  return fetchAndCache(COUNTRIES_KEY, fetchCountriesFromApi);
 }
 
 export async function updateCountries(payload: AdminCountryRow[]): Promise<AdminCountryRow[]> {
-  const { data } = await http.patch<AdminCountryRow[]>("/countries/localizations", payload);
-  return saveAndReturn(COUNTRIES_KEY, data);
+  for (const country of payload) {
+    await http.post("/countries/localizations", {
+      code: country.code,
+      default_name: countryDefaultName(country),
+    });
+  }
+  return saveAndReturn(COUNTRIES_KEY, payload);
 }
 
 export async function createCountry(payload: {
@@ -81,11 +138,11 @@ export async function createCountry(payload: {
     localizations: [],
   };
 
-  const countries = await getCountries();
-  saveAndReturn(
-    COUNTRIES_KEY,
-    [...countries.filter((item) => item.code !== created.code), created].sort((a, b) => a.code.localeCompare(b.code))
+  const countries = await fetchCountriesFromApi();
+  const next = [...countries.filter((item) => item.code !== created.code), created].sort((a, b) =>
+    a.code.localeCompare(b.code)
   );
+  saveAndReturn(COUNTRIES_KEY, next);
   return created;
 }
 
@@ -94,41 +151,36 @@ export async function deleteCountry(code: string): Promise<void> {
   removeFromStorageCache<AdminCountryRow>(COUNTRIES_KEY, (country) => country.code.toUpperCase() === code.toUpperCase());
 }
 
+async function fetchTeamsFromApi(): Promise<Team[]> {
+  const { data } = await http.get<TeamApiRow[]>("/teams");
+  const cached = readStorage<Team[]>(TEAMS_KEY);
+  const cachedById = new Map((cached ?? []).map((team) => [team.id, team]));
+  return data.map((row) => mapTeamFromApi(row, cachedById.get(String(row.id))));
+}
+
 export async function getTeams(): Promise<Team[]> {
-  return withStorageFallback(TEAMS_KEY, async () => {
-    const { data } = await http.get<Team[]>("/teams");
-    return data;
-  });
+  return fetchAndCache(TEAMS_KEY, fetchTeamsFromApi);
 }
 
 export async function getTeam(id: string): Promise<Team> {
   const teams = await getTeams();
   const cached = teams.find((team) => team.id === id);
   if (cached) return cached;
-  const { data } = await http.get<Team>(`/teams/${id}`);
-  return data;
+  const { data } = await http.get<TeamApiRow>(`/teams/${id}`);
+  return mapTeamFromApi(data);
 }
 
 export async function updateTeam(id: string, payload: Team): Promise<Team> {
-  const { data } = await http.patch<Team>(`/teams/${id}`, payload);
   const teams = await getTeams();
-  saveAndReturn(
-    TEAMS_KEY,
-    teams.map((team) => (team.id === id ? data : team))
-  );
-  return data;
+  const next = teams.map((team) => (team.id === id ? payload : team));
+  saveAndReturn(TEAMS_KEY, next);
+  return payload;
 }
 
 export type TeamCountryOption = {
   id: number;
   code: string;
   label: string;
-};
-
-type CountryApiRow = {
-  id: number;
-  code: string;
-  default_name: string;
 };
 
 export async function getTeamCountryOptions(): Promise<TeamCountryOption[]> {
@@ -162,9 +214,9 @@ export async function createTeam(payload: {
     localizations: [],
   };
 
-  const teams = await getTeams();
-  saveAndReturn(TEAMS_KEY, [...teams.filter((team) => team.id !== created.id), created]);
-  return created;
+  const teams = await fetchTeamsFromApi();
+  saveAndReturn(TEAMS_KEY, teams);
+  return teams.find((team) => team.id === created.id) ?? created;
 }
 
 export async function deleteTeam(id: string): Promise<void> {
@@ -172,40 +224,35 @@ export async function deleteTeam(id: string): Promise<void> {
   removeFromStorageCache<Team>(TEAMS_KEY, (team) => team.id === id);
 }
 
+async function fetchAthletesFromApi(): Promise<Athlete[]> {
+  const { data } = await http.get<AthleteApiRow[]>("/athletes");
+  const cached = readStorage<Athlete[]>(ATHLETES_KEY);
+  const cachedById = new Map((cached ?? []).map((athlete) => [athlete.id, athlete]));
+  return data.map((row) => mapAthleteFromApi(row, cachedById.get(String(row.id))));
+}
+
 export async function getAthletes(): Promise<Athlete[]> {
-  return withStorageFallback(ATHLETES_KEY, async () => {
-    const { data } = await http.get<Athlete[]>("/athletes");
-    return data;
-  });
+  return fetchAndCache(ATHLETES_KEY, fetchAthletesFromApi);
 }
 
 export async function getAthlete(id: string): Promise<Athlete> {
   const athletes = await getAthletes();
   const cached = athletes.find((athlete) => athlete.id === id);
   if (cached) return cached;
-  const { data } = await http.get<Athlete>(`/athletes/${id}`);
-  return data;
+  const { data } = await http.get<AthleteApiRow>(`/athletes/${id}`);
+  return mapAthleteFromApi(data);
 }
 
 export async function updateAthleteLocalizations(id: string, payload: Athlete["localizations"]) {
-  const { data } = await http.patch<Athlete["localizations"]>(`/athletes/${id}/localizations`, payload);
   const athletes = await getAthletes();
-  saveAndReturn(
-    ATHLETES_KEY,
-    athletes.map((athlete) => (athlete.id === id ? { ...athlete, localizations: data } : athlete))
-  );
-  return data;
+  const next = athletes.map((athlete) => (athlete.id === id ? { ...athlete, localizations: payload } : athlete));
+  saveAndReturn(ATHLETES_KEY, next);
+  return payload;
 }
 
 export type AthleteTeamOption = {
   id: number;
   label: string;
-};
-
-type TeamApiRow = {
-  id: number;
-  name: string;
-  country_code?: string | null;
 };
 
 export const ATHLETE_POSITION_OPTIONS = [
@@ -249,9 +296,9 @@ export async function createAthlete(payload: {
     photos: [],
   };
 
-  const athletes = await getAthletes();
-  saveAndReturn(ATHLETES_KEY, [...athletes.filter((athlete) => athlete.id !== created.id), created]);
-  return created;
+  const athletes = await fetchAthletesFromApi();
+  saveAndReturn(ATHLETES_KEY, athletes);
+  return athletes.find((athlete) => athlete.id === created.id) ?? created;
 }
 
 export async function deleteAthlete(id: string): Promise<void> {
@@ -259,8 +306,53 @@ export async function deleteAthlete(id: string): Promise<void> {
   removeFromStorageCache<Athlete>(ATHLETES_KEY, (athlete) => athlete.id === id);
 }
 
+async function fetchPositionsFromApi(): Promise<Position[]> {
+  const { data } = await http.get<PositionLabelApiRow[]>("/position-labels");
+  return sortPositions(data.map(mapPositionFromApi));
+}
+
+export async function getPositions(): Promise<Position[]> {
+  return fetchAndCache(POSITIONS_KEY, fetchPositionsFromApi);
+}
+
+export async function createPosition(payload: {
+  code: string;
+  label: string;
+  localeCode: string;
+}): Promise<Position> {
+  const { data } = await http.post<{ ok: true; id: number }>("/position-labels", {
+    position_code: payload.code,
+    locale_code: payload.localeCode,
+    label: payload.label,
+  });
+
+  const created: Position = {
+    id: String(data.id),
+    code: payload.code.trim().toUpperCase(),
+    label: payload.label.trim(),
+    localeCode: payload.localeCode.trim().toLowerCase(),
+  };
+
+  const positions = await fetchPositionsFromApi();
+  saveAndReturn(POSITIONS_KEY, positions);
+  return positions.find((item) => item.id === created.id) ?? created;
+}
+
+export async function updatePositions(payload: Position[]): Promise<Position[]> {
+  for (const position of payload) {
+    await http.post("/position-labels", {
+      position_code: position.code,
+      locale_code: position.localeCode,
+      label: position.label,
+    });
+  }
+  const positions = await fetchPositionsFromApi();
+  return saveAndReturn(POSITIONS_KEY, positions);
+}
+
 export async function deletePosition(id: string): Promise<void> {
   await http.delete(`/position-labels/${id}`);
+  removeFromStorageCache<Position>(POSITIONS_KEY, (position) => position.id === id);
 }
 
 export async function getAthletePhotos(id: string): Promise<AthletePhoto[]> {
@@ -282,102 +374,50 @@ export async function addAthletePhoto(id: string, imageUrl: string): Promise<Ath
 }
 
 export async function updateAthletePhotos(id: string, payload: AthletePhoto[]): Promise<AthletePhoto[]> {
-  const { data } = await http.patch<AthletePhoto[]>(`/athletes/${id}/photos`, payload);
   const athletes = await getAthletes();
   saveAndReturn(
     ATHLETES_KEY,
-    athletes.map((athlete) => (athlete.id === id ? { ...athlete, photos: data } : athlete))
+    athletes.map((athlete) => (athlete.id === id ? { ...athlete, photos: payload } : athlete))
   );
-  return data;
+  return payload;
 }
 
-type PositionLabelRow = {
-  id: number;
-  position_code: string;
-  label: string;
-  locale_code: string;
-};
-
-export async function getPositions(): Promise<Position[]> {
-  const { data } = await http.get<PositionLabelRow[]>("/position-labels");
-  return data
-    .map((row) => ({
-      id: String(row.id),
-      code: row.position_code,
-      label: row.label,
-      localeCode: row.locale_code,
-    }))
-    .sort((a, b) => a.code.localeCompare(b.code) || a.localeCode.localeCompare(b.localeCode));
-}
-
-export async function createPosition(payload: {
-  code: string;
-  label: string;
-  localeCode: string;
-}): Promise<Position> {
-  const { data } = await http.post<{ ok: true; id: number }>("/position-labels", {
-    position_code: payload.code,
-    locale_code: payload.localeCode,
-    label: payload.label,
-  });
-
-  return {
-    id: String(data.id),
-    code: payload.code.trim().toUpperCase(),
-    label: payload.label.trim(),
-    localeCode: payload.localeCode,
-  };
-}
-
-export async function updatePositions(payload: Position[]): Promise<Position[]> {
-  for (const position of payload) {
-    await http.post("/position-labels", {
-      position_code: position.code,
-      locale_code: position.localeCode,
-      label: position.label,
-    });
-  }
-  return getPositions();
-}
-
-function isLegacyDefaultTemplate(template: Template): boolean {
-  if (LEGACY_DEFAULT_TEMPLATE_IDS.has(template.id)) return true;
-  return LEGACY_DEFAULT_TEMPLATE_NAMES.has(template.name.trim().toLowerCase());
-}
-
-function withoutLegacyDefaultTemplates(templates: Template[]): Template[] {
-  return templates.filter((template) => !isLegacyDefaultTemplate(template));
+async function fetchTemplatesFromApi(): Promise<Template[]> {
+  const { data } = await http.get<QuestionTemplateApiRow[]>("/templates");
+  return data.map(mapTemplateFromApi);
 }
 
 export async function getTemplates(): Promise<Template[]> {
-  const stored = readStorage<Template[]>(TEMPLATES_KEY) ?? [];
-  const templates = withoutLegacyDefaultTemplates(stored);
-  if (templates.length !== stored.length) {
-    writeStorage(TEMPLATES_KEY, templates);
-  }
-  return templates;
+  return fetchAndCache(TEMPLATES_KEY, fetchTemplatesFromApi);
 }
 
 export async function createTemplate(payload: Pick<Template, "name" | "prompt" | "active">): Promise<Template> {
-  const templates = await getTemplates();
-  const created: Template = {
-    id: makeId("template"),
+  const { data } = await http.post<{ ok: true; id: number }>("/templates", templateToApiBody({
+    id: "",
     name: payload.name,
     prompt: payload.prompt,
     active: payload.active,
+  }));
+
+  const templates = await fetchTemplatesFromApi();
+  saveAndReturn(TEMPLATES_KEY, templates);
+  return templates.find((template) => template.id === String(data.id)) ?? {
+    id: String(data.id),
+    name: payload.name.trim(),
+    prompt: payload.prompt.trim(),
+    active: payload.active,
   };
-  saveAndReturn(TEMPLATES_KEY, [...templates, created]);
-  return created;
 }
 
 export async function updateTemplates(payload: Template[]): Promise<Template[]> {
-  return saveAndReturn(TEMPLATES_KEY, withoutLegacyDefaultTemplates(payload));
+  for (const template of payload) {
+    await http.post("/templates", templateToApiBody(template));
+  }
+  const templates = await fetchTemplatesFromApi();
+  return saveAndReturn(TEMPLATES_KEY, templates);
 }
 
 export async function deleteTemplate(id: string): Promise<void> {
-  const templates = await getTemplates();
-  saveAndReturn(
-    TEMPLATES_KEY,
-    templates.filter((template) => template.id !== id)
-  );
+  await http.delete(`/templates/${id}`);
+  removeFromStorageCache<Template>(TEMPLATES_KEY, (template) => template.id === id);
 }
