@@ -1,5 +1,7 @@
 export type ContentLocale = {
   code: string;
+  /** Display name persisted in MySQL `locales.name`. */
+  name?: string;
   enabled: boolean;
   isDefault: boolean;
 };

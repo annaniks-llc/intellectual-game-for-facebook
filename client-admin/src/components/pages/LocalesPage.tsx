@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { deleteLocale, getLocales, updateLocales } from "../../api/adminApi";
+import { createLocale, deleteLocale, getLocales, updateLocales } from "../../api/adminApi";
 import AddLocaleForm, { type AddLocaleFormValues } from "../locales/AddLocaleForm";
 import type { ContentLocale } from "../../types";
 
@@ -9,6 +9,7 @@ export default function LocalesPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -36,18 +37,27 @@ export default function LocalesPage() {
     }
   }
 
-  function onAddLocale(values: AddLocaleFormValues) {
-    setLocales((curr) => {
-      const isDefault = values.isDefault || curr.length === 0;
-      const next: ContentLocale = {
+  async function onAddLocale(values: AddLocaleFormValues) {
+    setAdding(true);
+    setError(null);
+    try {
+      const isDefault = values.isDefault || locales.length === 0;
+      const created = await createLocale({
         code: values.code,
         enabled: values.enabled,
         isDefault,
-      };
-      if (!isDefault) return [...curr, next];
-      return [...curr.map((l) => ({ ...l, isDefault: false })), next];
-    });
-    setShowAddForm(false);
+      });
+      setLocales((curr) => {
+        const without = curr.filter((item) => item.code !== created.code);
+        if (!created.isDefault) return [...without, created];
+        return [...without.map((item) => ({ ...item, isDefault: false })), created];
+      });
+      setShowAddForm(false);
+    } catch {
+      setError("Failed to create locale.");
+    } finally {
+      setAdding(false);
+    }
   }
 
   async function onDeleteLocale(code: string) {
@@ -75,10 +85,10 @@ export default function LocalesPage() {
 
       <AddLocaleForm
         open={showAddForm}
-        disabled={loading}
+        disabled={loading || adding}
         isFirstLocale={locales.length === 0}
         existingCodes={locales.map((locale) => locale.code)}
-        onSubmit={onAddLocale}
+        onSubmit={(values) => void onAddLocale(values)}
         onCancel={() => setShowAddForm(false)}
       />
 

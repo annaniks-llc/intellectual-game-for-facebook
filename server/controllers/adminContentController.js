@@ -17,6 +17,9 @@ import {
   upsertLocale as upsertLocaleInDb,
   upsertPositionLabel as upsertPositionLabelInDb,
   upsertQuestionLocalization as upsertQuestionLocalizationInDb,
+  listQuestionTemplates as listQuestionTemplatesFromDb,
+  upsertQuestionTemplate as upsertQuestionTemplateInDb,
+  deleteQuestionTemplateById as deleteQuestionTemplateByIdInDb,
 } from "../services/adminContentService.js";
 
 export function createAdminContentController(db) {
@@ -157,6 +160,45 @@ export function createAdminContentController(db) {
     return res.json({ ok: true });
   }
 
+  async function listQuestionTemplates(_req, res) {
+    const rows = await listQuestionTemplatesFromDb(db);
+    res.json(rows);
+  }
+
+  async function upsertQuestionTemplate(req, res) {
+    const id = req.body?.id ? Number(req.body.id) : null;
+    const name = String(req.body?.name || "").trim();
+    const prompt = String(req.body?.prompt || "").trim();
+    const isActive = req.body?.is_active !== false;
+    if (!name || !prompt) {
+      return res.status(400).json({ error: "name and prompt are required" });
+    }
+
+    try {
+      const { id: savedId, created } = await upsertQuestionTemplateInDb(db, {
+        id: id || undefined,
+        name,
+        prompt,
+        isActive,
+      });
+      return res.status(created ? 201 : 200).json({ ok: true, id: savedId });
+    } catch (error) {
+      if (error?.code === "ER_DUP_ENTRY") {
+        return res.status(409).json({ error: "template name already exists" });
+      }
+      throw error;
+    }
+  }
+
+  async function deleteQuestionTemplate(req, res) {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: "valid id is required" });
+
+    const deleted = await deleteQuestionTemplateByIdInDb(db, id);
+    if (!deleted) return res.status(404).json({ error: "template not found" });
+    return res.json({ ok: true });
+  }
+
   async function listQuestionLocalizations(_req, res) {
     const rows = await listQuestionLocalizationsFromDb(db);
     res.json(rows);
@@ -199,6 +241,9 @@ export function createAdminContentController(db) {
     listPositionLabels,
     upsertPositionLabel,
     deletePositionLabel,
+    listQuestionTemplates,
+    upsertQuestionTemplate,
+    deleteQuestionTemplate,
     listQuestionLocalizations,
     upsertQuestionLocalization,
   };
