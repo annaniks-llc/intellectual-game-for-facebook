@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { getAdminMe } from "./api/authApi";
 import AppLayout from "./components/layout/AppLayout";
 import ProtectedRoute from "./components/layout/ProtectedRoute";
 import AthletesPage from "./components/pages/AthletesPage";
@@ -13,9 +15,53 @@ import TeamsPage from "./components/pages/TeamsPage";
 import TemplatesPage from "./components/pages/TemplatesPage";
 import ChangePasswordPage from "./components/pages/ChangePasswordPage";
 import { useAuth } from "./hooks/useAuth";
+import { useAppDispatch } from "./redux/hooks";
+import { logout, sessionValidated, setAuthReady } from "./redux/slices/authSlice";
 
 export default function App() {
-  const { isAuthenticated } = useAuth();
+  const dispatch = useAppDispatch();
+  const { isAuthenticated, authReady } = useAuth();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkAdminSession() {
+      const token = localStorage.getItem("admin_token");
+      if (!token) {
+        dispatch(setAuthReady());
+        return;
+      }
+
+      try {
+        const { user } = await getAdminMe();
+        if (cancelled) return;
+
+        if (!user) {
+          dispatch(logout());
+          return;
+        }
+
+        dispatch(sessionValidated({ username: user.email }));
+      } catch {
+        if (cancelled) return;
+        dispatch(logout());
+      }
+    }
+
+    void checkAdminSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch]);
+
+  if (!authReady) {
+    return (
+      <div className="login-wrap">
+        <p>Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <Routes>
@@ -24,7 +70,7 @@ export default function App() {
       <Route
         path="/"
         element={
-          <ProtectedRoute isAuthenticated={isAuthenticated}>
+          <ProtectedRoute isAuthenticated={isAuthenticated} authReady={authReady}>
             <AppLayout />
           </ProtectedRoute>
         }

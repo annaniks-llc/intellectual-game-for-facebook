@@ -5,7 +5,9 @@ import helmet from "helmet";
 import db from "./db/connection.js";
 import { health } from "./controllers/healthController.js";
 import { createAdminRoutes } from "./routes/adminRoutes.js";
+import { createAdminMeRoutes } from "./routes/adminMeRoutes.js";
 import { createPlayerRoutes } from "./routes/playerRoutes.js";
+import { createPlayerMeRoutes } from "./routes/playerMeRoutes.js";
 import { createFacebookRoutes } from "./routes/facebookRoutes.js";
 
 dotenv.config({ path: "./.env" });
@@ -45,6 +47,8 @@ app.use(
 app.use(express.json());
 
 app.get("/health", health);
+app.use("/admin", createAdminMeRoutes(db));
+app.use("/player", createPlayerMeRoutes(db));
 app.use("/api", createPlayerRoutes(db));
 app.use("/api/facebook", createFacebookRoutes(db));
 app.use("/v1/admin", createAdminRoutes(db));
