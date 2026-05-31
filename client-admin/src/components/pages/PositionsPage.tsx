@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPosition, deletePosition, getLocales, getPositions, updatePositions } from "../../api/adminApi";
 import AddPositionForm, { type AddPositionFormValues, type PositionLocaleOption } from "../positions/AddPositionForm";
+import RowActions from "../common/RowActions";
 import type { ContentLocale, Position } from "../../types";
 
 export default function PositionsPage() {
@@ -11,6 +12,7 @@ export default function PositionsPage() {
   const [saving, setSaving] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -52,6 +54,20 @@ export default function PositionsPage() {
       setError("Failed to create position.");
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function onUpdatePosition(position: Position) {
+    setUpdatingId(position.id);
+    setError(null);
+    try {
+      const updated = await updatePositions([position]);
+      const saved = updated.find((item) => item.id === position.id) ?? position;
+      setPositions((curr) => curr.map((item) => (item.id === position.id ? saved : item)));
+    } catch {
+      setError("Failed to update position.");
+    } finally {
+      setUpdatingId(null);
     }
   }
 
@@ -138,9 +154,11 @@ export default function PositionsPage() {
                 />
               </td>
               <td>
-                <button type="button" className="ghost" onClick={() => void onDeletePosition(position.id)}>
-                  Delete
-                </button>
+                <RowActions
+                  onUpdate={() => void onUpdatePosition(position)}
+                  onDelete={() => void onDeletePosition(position.id)}
+                  updating={updatingId === position.id}
+                />
               </td>
             </tr>
           ))}

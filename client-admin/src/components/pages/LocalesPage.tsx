@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createLocale, deleteLocale, getLocales, updateLocales } from "../../api/adminApi";
 import AddLocaleForm, { type AddLocaleFormValues } from "../locales/AddLocaleForm";
+import RowActions from "../common/RowActions";
 import type { ContentLocale } from "../../types";
 
 export default function LocalesPage() {
@@ -10,6 +11,7 @@ export default function LocalesPage() {
   const [saving, setSaving] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [updatingCode, setUpdatingCode] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -57,6 +59,20 @@ export default function LocalesPage() {
       setError("Failed to create locale.");
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function onUpdateLocale(locale: ContentLocale) {
+    setUpdatingCode(locale.code);
+    setError(null);
+    try {
+      const updated = await updateLocales([locale]);
+      const saved = updated.find((item) => item.code === locale.code) ?? locale;
+      setLocales((curr) => curr.map((item) => (item.code === locale.code ? saved : item)));
+    } catch {
+      setError("Failed to update locale.");
+    } finally {
+      setUpdatingCode(null);
     }
   }
 
@@ -126,9 +142,11 @@ export default function LocalesPage() {
                 />
               </td>
               <td>
-                <button type="button" className="ghost" onClick={() => void onDeleteLocale(locale.code)}>
-                  Delete
-                </button>
+                <RowActions
+                  onUpdate={() => void onUpdateLocale(locale)}
+                  onDelete={() => void onDeleteLocale(locale.code)}
+                  updating={updatingCode === locale.code}
+                />
               </td>
             </tr>
           ))}
