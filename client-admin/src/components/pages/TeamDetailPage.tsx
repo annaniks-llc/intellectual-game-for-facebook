@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getLocales, getTeam, updateTeam } from "../../api/adminApi";
 import type { ContentLocale, Team } from "../../types";
@@ -11,24 +11,41 @@ export default function TeamDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  useLayoutEffect(() => {
+    setTeam(null);
+    setLocales([]);
+    setLoading(true);
+    setError(null);
+  }, [id]);
+
   useEffect(() => {
+    let cancelled = false;
+
     void (async () => {
-      setLoading(true);
-      setError(null);
       try {
         const [teamData, localesData] = await Promise.all([getTeam(id), getLocales()]);
+        if (cancelled) return;
         setTeam(teamData);
         setLocales(localesData);
       } catch {
+        if (cancelled) return;
         setError("Failed to load team details.");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
-  if (loading) return <section className="panel">Loading...</section>;
-  if (!team) return <section className="panel">{error ?? "Team not found."}</section>;
+  if (loading || (team !== null && team.id !== id)) {
+    return <section className="panel">Loading...</section>;
+  }
+  if (!team) {
+    return <section className="panel">{error ?? "Team not found."}</section>;
+  }
 
   async function onSave() {
     if (!team) return;

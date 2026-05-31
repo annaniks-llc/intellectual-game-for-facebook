@@ -89,6 +89,17 @@ export async function createLocale(payload: {
   return locales.find((item) => item.code === code) ?? locale;
 }
 
+export async function updateLocale(previousCode: string, locale: ContentLocale): Promise<ContentLocale[]> {
+  await http.post("/locales", localeToApiBody(locale, previousCode));
+
+  let locales = await fetchLocalesFromApi();
+  if (locale.isDefault) {
+    locales = applyDefaultLocale(locales, locale.code);
+  }
+  saveAndReturn(LOCALES_KEY, locales);
+  return locales;
+}
+
 export async function updateLocales(payload: ContentLocale[]): Promise<ContentLocale[]> {
   for (const locale of payload) {
     await http.post("/locales", localeToApiBody(locale));
@@ -110,6 +121,36 @@ async function fetchCountriesFromApi(): Promise<AdminCountryRow[]> {
 
 export async function getCountries(): Promise<AdminCountryRow[]> {
   return fetchAndCache(COUNTRIES_KEY, fetchCountriesFromApi);
+}
+
+export async function updateCountry(previousCode: string, country: AdminCountryRow): Promise<AdminCountryRow[]> {
+  const code = country.code.trim().toUpperCase();
+  const normalizedPrevious = previousCode.trim().toUpperCase();
+  await http.post("/countries/localizations", {
+    code,
+    default_name: countryDefaultName(country),
+    ...(normalizedPrevious !== code ? { previous_code: normalizedPrevious } : {}),
+  });
+
+  const countries = await fetchCountriesFromApi();
+  const fromApi = countries.find((item) => item.code.toUpperCase() === code) ?? {
+    code,
+    enabledForGenerator: country.enabledForGenerator,
+    localizations: [],
+  };
+  const saved: AdminCountryRow = {
+    ...fromApi,
+    enabledForGenerator: country.enabledForGenerator,
+    localizations: country.localizations,
+  };
+  const next = [
+    ...countries.filter(
+      (item) =>
+        item.code.toUpperCase() !== normalizedPrevious && item.code.toUpperCase() !== code.toUpperCase()
+    ),
+    saved,
+  ].sort((a, b) => a.code.localeCompare(b.code));
+  return saveAndReturn(COUNTRIES_KEY, next);
 }
 
 export async function updateCountries(payload: AdminCountryRow[]): Promise<AdminCountryRow[]> {
@@ -243,6 +284,37 @@ export async function getAthlete(id: string): Promise<Athlete> {
   return mapAthleteFromApi(data);
 }
 
+export async function updateAthlete(
+  id: string,
+  payload: {
+    firstName: string;
+    lastName: string;
+    teamId: number;
+    positionCode: string;
+    active: boolean;
+  }
+): Promise<Athlete> {
+  const athletes = await getAthletes();
+  const teamOption = (await getAthleteTeamOptions()).find((team) => team.id === payload.teamId);
+  const next = athletes.map((athlete) =>
+    athlete.id === id
+      ? {
+          ...athlete,
+          canonicalFirstName: payload.firstName,
+          canonicalLastName: payload.lastName,
+          teamId: String(payload.teamId),
+          teamName: teamOption?.label,
+          position: payload.positionCode,
+          active: payload.active,
+        }
+      : athlete
+  );
+  saveAndReturn(ATHLETES_KEY, next);
+  const updated = next.find((athlete) => athlete.id === id);
+  if (!updated) throw new Error("Athlete not found");
+  return updated;
+}
+
 export async function updateAthleteLocalizations(id: string, payload: Athlete["localizations"]) {
   const athletes = await getAthletes();
   const next = athletes.map((athlete) => (athlete.id === id ? { ...athlete, localizations: payload } : athlete));
@@ -338,9 +410,21 @@ export async function createPosition(payload: {
   return positions.find((item) => item.id === created.id) ?? created;
 }
 
+export async function updatePosition(position: Position): Promise<Position[]> {
+  await http.post("/position-labels", {
+    id: Number(position.id),
+    position_code: position.code,
+    locale_code: position.localeCode,
+    label: position.label,
+  });
+  const positions = await fetchPositionsFromApi();
+  return saveAndReturn(POSITIONS_KEY, positions);
+}
+
 export async function updatePositions(payload: Position[]): Promise<Position[]> {
   for (const position of payload) {
     await http.post("/position-labels", {
+      id: Number(position.id),
       position_code: position.code,
       locale_code: position.localeCode,
       label: position.label,

@@ -15,6 +15,7 @@ import {
   listTeams as listTeamsFromDb,
   upsertCountry as upsertCountryInDb,
   upsertLocale as upsertLocaleInDb,
+  updatePositionLabelById as updatePositionLabelByIdInDb,
   upsertPositionLabel as upsertPositionLabelInDb,
   upsertQuestionLocalization as upsertQuestionLocalizationInDb,
   listQuestionTemplates as listQuestionTemplatesFromDb,
@@ -32,10 +33,19 @@ export function createAdminContentController(db) {
     const code = String(req.body?.code || "").trim().toLowerCase();
     const name = String(req.body?.name || "").trim();
     const isEnabled = req.body?.is_enabled !== false;
+    const previousCode = String(req.body?.previous_code || "").trim().toLowerCase();
     if (!code || !name) return res.status(400).json({ error: "code and name are required" });
 
-    const { id, created } = await upsertLocaleInDb(db, { code, name, isEnabled });
-    return res.status(created ? 201 : 200).json({ ok: true, id });
+    const result = await upsertLocaleInDb(db, {
+      code,
+      name,
+      isEnabled,
+      previousCode: previousCode || undefined,
+    });
+    if (result.notFound) return res.status(404).json({ error: "locale not found" });
+    if (result.conflict) return res.status(409).json({ error: "locale code already exists" });
+
+    return res.status(result.created ? 201 : 200).json({ ok: true, id: result.id });
   }
 
   async function deleteLocale(req, res) {
@@ -57,10 +67,18 @@ export function createAdminContentController(db) {
   async function upsertCountry(req, res) {
     const code = String(req.body?.code || "").trim().toUpperCase();
     const defaultName = String(req.body?.default_name || "").trim();
+    const previousCode = String(req.body?.previous_code || "").trim().toUpperCase();
     if (code.length !== 2 || !defaultName) return res.status(400).json({ error: "valid country code and default_name are required" });
 
-    const { id, created } = await upsertCountryInDb(db, { code, defaultName });
-    return res.status(created ? 201 : 200).json({ ok: true, id });
+    const result = await upsertCountryInDb(db, {
+      code,
+      defaultName,
+      previousCode: previousCode || undefined,
+    });
+    if (result.notFound) return res.status(404).json({ error: "country not found" });
+    if (result.conflict) return res.status(409).json({ error: "country code already exists" });
+
+    return res.status(result.created ? 201 : 200).json({ ok: true, id: result.id });
   }
 
   async function deleteCountry(req, res) {
@@ -133,6 +151,7 @@ export function createAdminContentController(db) {
   }
 
   async function upsertPositionLabel(req, res) {
+    const id = Number(req.body?.id);
     const positionCode = String(req.body?.position_code || "").trim().toUpperCase();
     const localeCode = String(req.body?.locale_code || "").trim().toLowerCase();
     const label = String(req.body?.label || "").trim();
@@ -143,12 +162,26 @@ export function createAdminContentController(db) {
     const locale = await findLocaleByCode(db, localeCode);
     if (!locale) return res.status(404).json({ error: "locale not found" });
 
-    const { id, created } = await upsertPositionLabelInDb(db, {
+    if (id) {
+      const result = await updatePositionLabelByIdInDb(db, {
+        id,
+        positionCode,
+        localeId: locale.id,
+        label,
+      });
+      if (result.notFound) return res.status(404).json({ error: "position label not found" });
+      if (result.conflict) {
+        return res.status(409).json({ error: "position label already exists for this locale" });
+      }
+      return res.json({ ok: true, id: result.id });
+    }
+
+    const { id: newId, created } = await upsertPositionLabelInDb(db, {
       positionCode,
       localeId: locale.id,
       label,
     });
-    return res.status(created ? 201 : 200).json({ ok: true, id });
+    return res.status(created ? 201 : 200).json({ ok: true, id: newId });
   }
 
   async function deletePositionLabel(req, res) {

@@ -1,21 +1,16 @@
-import { useNavigate } from "react-router-dom";
-
 type RowActionsProps = {
-  updateHref?: string;
-  onUpdate?: () => void;
+  onUpdate: () => void;
   onDelete: () => void;
   updating?: boolean;
 };
 
-export default function RowActions({ updateHref, onUpdate, onDelete, updating = false }: RowActionsProps) {
-  const navigate = useNavigate();
-
+export default function RowActions({ onUpdate, onDelete, updating = false }: RowActionsProps) {
   return (
     <span className="row-actions">
       <button
         type="button"
         className="ghost"
-        onClick={() => (updateHref ? navigate(updateHref) : onUpdate?.())}
+        onClick={onUpdate}
         disabled={updating}
       >
         {updating ? "Updating..." : "Update"}

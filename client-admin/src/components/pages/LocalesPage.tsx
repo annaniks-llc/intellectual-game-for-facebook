@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { createLocale, deleteLocale, getLocales, updateLocales } from "../../api/adminApi";
+import { createLocale, deleteLocale, getLocales, updateLocale, updateLocales } from "../../api/adminApi";
 import AddLocaleForm, { type AddLocaleFormValues } from "../locales/AddLocaleForm";
 import RowActions from "../common/RowActions";
 import type { ContentLocale } from "../../types";
@@ -10,8 +10,8 @@ export default function LocalesPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [updatingCode, setUpdatingCode] = useState<string | null>(null);
+  const [editingLocale, setEditingLocale] = useState<ContentLocale | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -27,6 +27,8 @@ export default function LocalesPage() {
     })();
   }, []);
 
+  const formOpen = showAddForm || editingLocale !== null;
+
   async function onSave() {
     setSaving(true);
     setError(null);
@@ -40,7 +42,7 @@ export default function LocalesPage() {
   }
 
   async function onAddLocale(values: AddLocaleFormValues) {
-    setAdding(true);
+    setSubmitting(true);
     setError(null);
     try {
       const isDefault = values.isDefault || locales.length === 0;
@@ -58,21 +60,38 @@ export default function LocalesPage() {
     } catch {
       setError("Failed to create locale.");
     } finally {
-      setAdding(false);
+      setSubmitting(false);
     }
   }
 
-  async function onUpdateLocale(locale: ContentLocale) {
-    setUpdatingCode(locale.code);
+  async function onEditLocale(values: AddLocaleFormValues) {
+    if (!editingLocale) return;
+    setSubmitting(true);
     setError(null);
     try {
-      const updated = await updateLocales([locale]);
-      const saved = updated.find((item) => item.code === locale.code) ?? locale;
-      setLocales((curr) => curr.map((item) => (item.code === locale.code ? saved : item)));
+      const code = values.code.trim().toLowerCase();
+      const payload: ContentLocale = {
+        code,
+        name: code,
+        enabled: values.enabled,
+        isDefault: values.isDefault,
+      };
+      const updated = await updateLocale(editingLocale.code, payload);
+      const saved = updated.find((item) => item.code === code) ?? payload;
+      setLocales((curr) => {
+        const withoutOld = curr.filter((item) => item.code !== editingLocale.code);
+        const normalized = saved.isDefault
+          ? withoutOld.map((item) => ({ ...item, isDefault: false }))
+          : withoutOld;
+        return [...normalized.filter((item) => item.code !== saved.code), saved].sort((a, b) =>
+          a.code.localeCompare(b.code)
+        );
+      });
+      setEditingLocale(null);
     } catch {
       setError("Failed to update locale.");
     } finally {
-      setUpdatingCode(null);
+      setSubmitting(false);
     }
   }
 
@@ -82,9 +101,15 @@ export default function LocalesPage() {
     try {
       await deleteLocale(code);
       setLocales((curr) => curr.filter((item) => item.code !== code));
+      if (editingLocale?.code === code) setEditingLocale(null);
     } catch {
       setError("Failed to delete locale.");
     }
+  }
+
+  function openEdit(locale: ContentLocale) {
+    setShowAddForm(false);
+    setEditingLocale(locale);
   }
 
   return (
@@ -92,21 +117,41 @@ export default function LocalesPage() {
       <h2>Content Locales</h2>
       <p>Manage enabled locales used in generated quiz content.</p>
       <div className="h-row">
-        {!showAddForm ? (
+        {!formOpen ? (
           <button type="button" onClick={() => setShowAddForm(true)} disabled={loading}>
             Add locale
           </button>
         ) : null}
       </div>
 
-      <AddLocaleForm
-        open={showAddForm}
-        disabled={loading || adding}
-        isFirstLocale={locales.length === 0}
-        existingCodes={locales.map((locale) => locale.code)}
-        onSubmit={(values) => void onAddLocale(values)}
-        onCancel={() => setShowAddForm(false)}
-      />
+      {showAddForm ? (
+        <AddLocaleForm
+          open
+          disabled={loading || submitting}
+          isFirstLocale={locales.length === 0}
+          existingCodes={locales.map((locale) => locale.code)}
+          onSubmit={(values) => void onAddLocale(values)}
+          onCancel={() => setShowAddForm(false)}
+        />
+      ) : null}
+
+      {editingLocale ? (
+        <AddLocaleForm
+          key={editingLocale.code}
+          mode="edit"
+          open
+          disabled={loading || submitting}
+          isFirstLocale={locales.length === 0}
+          initialValues={{
+            code: editingLocale.code,
+            enabled: editingLocale.enabled,
+            isDefault: editingLocale.isDefault,
+          }}
+          existingCodes={locales.filter((l) => l.code !== editingLocale.code).map((l) => l.code)}
+          onSubmit={(values) => void onEditLocale(values)}
+          onCancel={() => setEditingLocale(null)}
+        />
+      ) : null}
 
       {error ? <p className="error-text">{error}</p> : null}
       {loading ? <p>Loading...</p> : null}
@@ -143,9 +188,9 @@ export default function LocalesPage() {
               </td>
               <td>
                 <RowActions
-                  onUpdate={() => void onUpdateLocale(locale)}
+                  onUpdate={() => openEdit(locale)}
                   onDelete={() => void onDeleteLocale(locale.code)}
-                  updating={updatingCode === locale.code}
+                  updating={submitting && editingLocale?.code === locale.code}
                 />
               </td>
             </tr>

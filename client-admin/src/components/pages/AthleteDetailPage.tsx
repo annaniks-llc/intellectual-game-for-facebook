@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   addAthletePhoto,
@@ -24,25 +24,41 @@ export default function AthleteDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  useLayoutEffect(() => {
+    setAthlete(null);
+    setLocales([]);
+    setPhotos([]);
+    setNewUrl("");
+    setTab("summary");
+    setLoading(true);
+    setError(null);
+  }, [id]);
+
   useEffect(() => {
+    let cancelled = false;
+
     void (async () => {
-      setLoading(true);
-      setError(null);
       try {
         const [athleteData, localesData, photoData] = await Promise.all([
           getAthlete(id),
           getLocales(),
           getAthletePhotos(id),
         ]);
+        if (cancelled) return;
         setAthlete(athleteData);
         setLocales(localesData);
         setPhotos(photoData);
       } catch {
+        if (cancelled) return;
         setError("Failed to load athlete details.");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   const completed = useMemo(
@@ -53,8 +69,12 @@ export default function AthleteDetailPage() {
     [athlete]
   );
 
-  if (loading) return <section className="panel">Loading...</section>;
-  if (!athlete) return <section className="panel">{error ?? "Athlete not found."}</section>;
+  if (loading || (athlete !== null && athlete.id !== id)) {
+    return <section className="panel">Loading...</section>;
+  }
+  if (!athlete) {
+    return <section className="panel">{error ?? "Athlete not found."}</section>;
+  }
 
   return (
     <section className="panel">
