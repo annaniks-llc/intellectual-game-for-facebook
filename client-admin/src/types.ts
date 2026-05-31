@@ -46,6 +46,8 @@ export type Athlete = {
   canonicalFirstName: string;
   canonicalLastName: string;
   teamId: string;
+  teamShortName?: string;
+  teamName?: string;
   position: string;
   active: boolean;
   localizations: AthleteLocalization[];

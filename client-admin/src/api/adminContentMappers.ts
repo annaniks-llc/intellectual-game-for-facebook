@@ -26,6 +26,8 @@ export type AthleteApiRow = {
   first_name: string;
   last_name: string;
   team_id: number;
+  team_name?: string | null;
+  team_short_name?: string | null;
   position_code: string;
   is_active: boolean;
 };
@@ -113,6 +115,8 @@ export function mapAthleteFromApi(row: AthleteApiRow, cached?: Athlete): Athlete
     canonicalFirstName: row.first_name,
     canonicalLastName: row.last_name,
     teamId: String(row.team_id),
+    teamShortName: row.team_short_name?.trim() || cached?.teamShortName,
+    teamName: row.team_name?.trim() || cached?.teamName,
     position: row.position_code,
     active: row.is_active,
     localizations: cached?.localizations ?? [],
