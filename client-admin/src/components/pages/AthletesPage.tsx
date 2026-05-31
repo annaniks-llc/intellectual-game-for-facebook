@@ -102,7 +102,7 @@ export default function AthletesPage() {
               <td>
                 {athlete.canonicalFirstName} {athlete.canonicalLastName}
               </td>
-              <td>{athlete.teamId}</td>
+              <td>{athlete.teamShortName || athlete.teamName || athlete.teamId}</td>
               <td>{athlete.position}</td>
               <td>
                 <Link to={`/athletes/${athlete.id}`}>Open</Link>

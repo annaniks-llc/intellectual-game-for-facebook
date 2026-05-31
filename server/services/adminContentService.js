@@ -84,7 +84,7 @@ export async function deleteTeamById(db, teamId) {
 export function listAthletes(db) {
   return db("athletes as a")
     .join("teams as t", "t.id", "a.team_id")
-    .select("a.*", "t.name as team_name")
+    .select("a.*", "t.name as team_name", "t.short_name as team_short_name")
     .orderBy("a.id", "asc");
 }
 
