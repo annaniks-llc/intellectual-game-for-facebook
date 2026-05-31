@@ -8,6 +8,8 @@ export type AddCountryFormValues = {
 
 type AddCountryFormProps = {
   open: boolean;
+  mode?: "add" | "edit";
+  initialValues?: AddCountryFormValues;
   disabled?: boolean;
   submitting?: boolean;
   existingCodes: string[];
@@ -23,22 +25,25 @@ const emptyForm = (): AddCountryFormValues => ({
 
 export default function AddCountryForm({
   open,
+  mode = "add",
+  initialValues,
   disabled = false,
   submitting = false,
   existingCodes,
   onSubmit,
   onCancel,
 }: AddCountryFormProps) {
+  const isEdit = mode === "edit";
   const [form, setForm] = useState<AddCountryFormValues>(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const isBusy = disabled || submitting;
 
   useEffect(() => {
     if (open) {
-      setForm(emptyForm());
+      setForm(isEdit && initialValues ? initialValues : emptyForm());
       setError(null);
     }
-  }, [open]);
+  }, [open, isEdit, initialValues]);
 
   if (!open) return null;
 
@@ -70,7 +75,7 @@ export default function AddCountryForm({
 
   return (
     <form className="add-form" onSubmit={handleSubmit} autoComplete="off">
-      <h3>Add country</h3>
+      <h3>{isEdit ? "Edit country" : "Add country"}</h3>
       <label htmlFor="country-code">Country code (ISO-2)</label>
       <input
         id="country-code"
@@ -103,7 +108,7 @@ export default function AddCountryForm({
       {error ? <p className="error-text">{error}</p> : null}
       <div className="h-row">
         <button type="submit" disabled={isBusy}>
-          {submitting ? "Adding..." : "Add country"}
+          {submitting ? "Saving..." : isEdit ? "Save changes" : "Add country"}
         </button>
         <button type="button" className="ghost" onClick={onCancel} disabled={isBusy}>
           Cancel

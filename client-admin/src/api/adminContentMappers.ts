@@ -46,11 +46,14 @@ export type QuestionTemplateApiRow = {
   is_active: boolean;
 };
 
-export function localeToApiBody(locale: ContentLocale) {
+export function localeToApiBody(locale: ContentLocale, previousCode?: string) {
+  const code = locale.code.trim().toLowerCase();
+  const normalizedPrevious = previousCode?.trim().toLowerCase();
   return {
-    code: locale.code.trim().toLowerCase(),
+    code,
     name: (locale.name ?? locale.code).trim(),
     is_enabled: locale.enabled,
+    ...(normalizedPrevious && normalizedPrevious !== code ? { previous_code: normalizedPrevious } : {}),
   };
 }
 

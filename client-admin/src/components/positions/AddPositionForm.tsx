@@ -18,6 +18,8 @@ type ExistingPositionEntry = {
 
 type AddPositionFormProps = {
   open: boolean;
+  mode?: "add" | "edit";
+  initialValues?: AddPositionFormValues;
   disabled?: boolean;
   submitting?: boolean;
   defaultLocaleCode?: string;
@@ -35,6 +37,8 @@ const emptyForm = (defaultLocaleCode: string): AddPositionFormValues => ({
 
 export default function AddPositionForm({
   open,
+  mode = "add",
+  initialValues,
   disabled = false,
   submitting = false,
   defaultLocaleCode: preferredLocaleCode,
@@ -43,6 +47,7 @@ export default function AddPositionForm({
   onSubmit,
   onCancel,
 }: AddPositionFormProps) {
+  const isEdit = mode === "edit";
   const initialLocaleCode =
     preferredLocaleCode && localeOptions.some((l) => l.code === preferredLocaleCode)
       ? preferredLocaleCode
@@ -53,10 +58,10 @@ export default function AddPositionForm({
 
   useEffect(() => {
     if (open) {
-      setForm(emptyForm(initialLocaleCode));
+      setForm(isEdit && initialValues ? initialValues : emptyForm(initialLocaleCode));
       setError(null);
     }
-  }, [open, initialLocaleCode]);
+  }, [open, isEdit, initialValues, initialLocaleCode]);
 
   if (!open) return null;
 
@@ -94,7 +99,7 @@ export default function AddPositionForm({
 
   return (
     <form className="add-form" onSubmit={handleSubmit} autoComplete="off">
-      <h3>Add position</h3>
+      <h3>{isEdit ? "Edit position" : "Add position"}</h3>
       <label htmlFor="position-code">Code</label>
       <input
         id="position-code"
@@ -134,7 +139,7 @@ export default function AddPositionForm({
       {error ? <p className="error-text">{error}</p> : null}
       <div className="h-row">
         <button type="submit" disabled={isBusy || localeOptions.length === 0}>
-          {submitting ? "Adding..." : "Add position"}
+          {submitting ? "Saving..." : isEdit ? "Save changes" : "Add position"}
         </button>
         <button type="button" className="ghost" onClick={onCancel} disabled={isBusy}>
           Cancel

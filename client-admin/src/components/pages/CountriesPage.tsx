@@ -1,8 +1,32 @@
 import { useEffect, useMemo, useState } from "react";
-import { createCountry, deleteCountry, getCountries, getLocales, updateCountries } from "../../api/adminApi";
+import { createCountry, deleteCountry, getCountries, getLocales, updateCountries, updateCountry } from "../../api/adminApi";
+import { countryDefaultName } from "../../api/adminContentMappers";
 import AddCountryForm, { type AddCountryFormValues } from "../countries/AddCountryForm";
 import RowActions from "../common/RowActions";
 import type { AdminCountryRow, ContentLocale } from "../../types";
+
+function countryFormValues(row: AdminCountryRow): AddCountryFormValues {
+  return {
+    code: row.code,
+    defaultName: countryDefaultName(row),
+    enabledForGenerator: row.enabledForGenerator,
+  };
+}
+
+function applyCountryFormValues(row: AdminCountryRow, values: AddCountryFormValues): AdminCountryRow {
+  const localizations =
+    row.localizations.length > 0
+      ? row.localizations.map((loc, index) =>
+          index === 0 ? { ...loc, displayName: values.defaultName } : loc
+        )
+      : [{ locale: "en", displayName: values.defaultName }];
+
+  return {
+    code: values.code.trim().toUpperCase(),
+    enabledForGenerator: values.enabledForGenerator,
+    localizations,
+  };
+}
 
 export default function CountriesPage() {
   const [countries, setCountries] = useState<AdminCountryRow[]>([]);
@@ -11,8 +35,8 @@ export default function CountriesPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [updatingCode, setUpdatingCode] = useState<string | null>(null);
+  const [editingCountry, setEditingCountry] = useState<AdminCountryRow | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -31,6 +55,7 @@ export default function CountriesPage() {
   }, []);
 
   const enabledLocales = useMemo(() => locales.filter((l) => l.enabled), [locales]);
+  const formOpen = showAddForm || editingCountry !== null;
 
   async function onSave() {
     setSaving(true);
@@ -45,7 +70,7 @@ export default function CountriesPage() {
   }
 
   async function onAddCountry(values: AddCountryFormValues) {
-    setAdding(true);
+    setSubmitting(true);
     setError(null);
     try {
       const created = await createCountry({
@@ -58,21 +83,24 @@ export default function CountriesPage() {
     } catch {
       setError("Failed to create country.");
     } finally {
-      setAdding(false);
+      setSubmitting(false);
     }
   }
 
-  async function onUpdateCountry(row: AdminCountryRow) {
-    setUpdatingCode(row.code);
+  async function onEditCountry(values: AddCountryFormValues) {
+    if (!editingCountry) return;
+    setSubmitting(true);
     setError(null);
     try {
-      const updated = await updateCountries([row]);
-      const saved = updated.find((item) => item.code === row.code) ?? row;
-      setCountries((curr) => curr.map((item) => (item.code === row.code ? saved : item)));
+      const payload = applyCountryFormValues(editingCountry, values);
+      const updated = await updateCountry(editingCountry.code, payload);
+      const saved = updated.find((item) => item.code === payload.code) ?? payload;
+      setCountries(updated);
+      setEditingCountry(null);
     } catch {
       setError("Failed to update country.");
     } finally {
-      setUpdatingCode(null);
+      setSubmitting(false);
     }
   }
 
@@ -82,30 +110,52 @@ export default function CountriesPage() {
     try {
       await deleteCountry(code);
       setCountries((curr) => curr.filter((item) => item.code !== code));
+      if (editingCountry?.code === code) setEditingCountry(null);
     } catch {
       setError("Failed to delete country.");
     }
+  }
+
+  function openEdit(row: AdminCountryRow) {
+    setShowAddForm(false);
+    setEditingCountry(row);
   }
 
   return (
     <section className="panel">
       <h2>Countries</h2>
       <div className="h-row">
-        {!showAddForm ? (
+        {!formOpen ? (
           <button type="button" onClick={() => setShowAddForm(true)} disabled={loading}>
             Add country
           </button>
         ) : null}
       </div>
 
-      <AddCountryForm
-        open={showAddForm}
-        disabled={loading}
-        submitting={adding}
-        existingCodes={countries.map((country) => country.code)}
-        onSubmit={(values) => void onAddCountry(values)}
-        onCancel={() => setShowAddForm(false)}
-      />
+      {showAddForm ? (
+        <AddCountryForm
+          open
+          disabled={loading}
+          submitting={submitting}
+          existingCodes={countries.map((country) => country.code)}
+          onSubmit={(values) => void onAddCountry(values)}
+          onCancel={() => setShowAddForm(false)}
+        />
+      ) : null}
+
+      {editingCountry ? (
+        <AddCountryForm
+          key={editingCountry.code}
+          mode="edit"
+          open
+          disabled={loading}
+          submitting={submitting}
+          initialValues={countryFormValues(editingCountry)}
+          existingCodes={countries.filter((c) => c.code !== editingCountry.code).map((c) => c.code)}
+          onSubmit={(values) => void onEditCountry(values)}
+          onCancel={() => setEditingCountry(null)}
+        />
+      ) : null}
 
       {error ? <p className="error-text">{error}</p> : null}
       {loading ? <p>Loading...</p> : null}
@@ -159,9 +209,9 @@ export default function CountriesPage() {
               ))}
               <td>
                 <RowActions
-                  onUpdate={() => void onUpdateCountry(row)}
+                  onUpdate={() => openEdit(row)}
                   onDelete={() => void onDeleteCountry(row.code)}
-                  updating={updatingCode === row.code}
+                  updating={submitting && editingCountry?.code === row.code}
                 />
               </td>
             </tr>

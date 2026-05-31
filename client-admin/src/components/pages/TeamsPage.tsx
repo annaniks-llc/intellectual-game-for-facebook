@@ -1,8 +1,27 @@
 import { useEffect, useState } from "react";
-import { createTeam, deleteTeam, getTeamCountryOptions, getTeams, type TeamCountryOption } from "../../api/adminApi";
+import {
+  createTeam,
+  deleteTeam,
+  getTeamCountryOptions,
+  getTeams,
+  updateTeam,
+  type TeamCountryOption,
+} from "../../api/adminApi";
 import AddTeamForm, { type AddTeamFormValues } from "../teams/AddTeamForm";
 import RowActions from "../common/RowActions";
 import type { Team } from "../../types";
+
+function teamFormValues(team: Team, countryOptions: TeamCountryOption[]): AddTeamFormValues {
+  const country = countryOptions.find((item) => item.code === team.countryCode);
+  const defaultLocale = team.localizations[0];
+  return {
+    name: team.canonicalName,
+    shortName: defaultLocale?.shortName ?? "",
+    crestUrl: team.crestUrl ?? "",
+    countryId: country?.id ?? null,
+    countryCode: team.countryCode,
+  };
+}
 
 export default function TeamsPage() {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -10,7 +29,8 @@ export default function TeamsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [adding, setAdding] = useState(false);
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -28,8 +48,10 @@ export default function TeamsPage() {
     })();
   }, []);
 
+  const formOpen = showAddForm || editingTeam !== null;
+
   async function onAddTeam(values: AddTeamFormValues) {
-    setAdding(true);
+    setSubmitting(true);
     setError(null);
     try {
       const created = await createTeam({
@@ -44,7 +66,28 @@ export default function TeamsPage() {
     } catch {
       setError("Failed to create team.");
     } finally {
-      setAdding(false);
+      setSubmitting(false);
+    }
+  }
+
+  async function onEditTeam(values: AddTeamFormValues) {
+    if (!editingTeam) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const updated: Team = {
+        ...editingTeam,
+        canonicalName: values.name,
+        crestUrl: values.crestUrl || undefined,
+        countryCode: values.countryCode,
+      };
+      const saved = await updateTeam(editingTeam.id, updated);
+      setTeams((curr) => curr.map((item) => (item.id === editingTeam.id ? saved : item)));
+      setEditingTeam(null);
+    } catch {
+      setError("Failed to update team.");
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -54,30 +97,52 @@ export default function TeamsPage() {
     try {
       await deleteTeam(id);
       setTeams((curr) => curr.filter((item) => item.id !== id));
+      if (editingTeam?.id === id) setEditingTeam(null);
     } catch {
       setError("Failed to delete team.");
     }
+  }
+
+  function openEdit(team: Team) {
+    setShowAddForm(false);
+    setEditingTeam(team);
   }
 
   return (
     <section className="panel">
       <h2>Teams</h2>
       <div className="h-row">
-        {!showAddForm ? (
+        {!formOpen ? (
           <button type="button" onClick={() => setShowAddForm(true)} disabled={loading}>
             Add team
           </button>
         ) : null}
       </div>
 
-      <AddTeamForm
-        open={showAddForm}
-        disabled={loading}
-        submitting={adding}
-        countryOptions={countryOptions}
-        onSubmit={(values) => void onAddTeam(values)}
-        onCancel={() => setShowAddForm(false)}
-      />
+      {showAddForm ? (
+        <AddTeamForm
+          open
+          disabled={loading}
+          submitting={submitting}
+          countryOptions={countryOptions}
+          onSubmit={(values) => void onAddTeam(values)}
+          onCancel={() => setShowAddForm(false)}
+        />
+      ) : null}
+
+      {editingTeam ? (
+        <AddTeamForm
+          key={editingTeam.id}
+          mode="edit"
+          open
+          disabled={loading}
+          submitting={submitting}
+          countryOptions={countryOptions}
+          initialValues={teamFormValues(editingTeam, countryOptions)}
+          onSubmit={(values) => void onEditTeam(values)}
+          onCancel={() => setEditingTeam(null)}
+        />
+      ) : null}
 
       {error ? <p className="error-text">{error}</p> : null}
       {loading ? <p>Loading...</p> : null}
@@ -98,8 +163,9 @@ export default function TeamsPage() {
               <td>{team.localizations.length}</td>
               <td>
                 <RowActions
-                  updateHref={`/teams/${team.id}`}
+                  onUpdate={() => openEdit(team)}
                   onDelete={() => void onDeleteTeam(team.id)}
+                  updating={submitting && editingTeam?.id === team.id}
                 />
               </td>
             </tr>

@@ -10,8 +10,8 @@ export default function TemplatesPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -27,8 +27,10 @@ export default function TemplatesPage() {
     })();
   }, []);
 
+  const formOpen = showAddForm || editingTemplate !== null;
+
   async function onAddTemplate(values: AddTemplateFormValues) {
-    setAdding(true);
+    setSubmitting(true);
     setError(null);
     try {
       const created = await createTemplate(values);
@@ -37,7 +39,29 @@ export default function TemplatesPage() {
     } catch {
       setError("Failed to create template.");
     } finally {
-      setAdding(false);
+      setSubmitting(false);
+    }
+  }
+
+  async function onEditTemplate(values: AddTemplateFormValues) {
+    if (!editingTemplate) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const payload: Template = {
+        ...editingTemplate,
+        name: values.name.trim(),
+        prompt: values.prompt.trim(),
+        active: values.active,
+      };
+      const updated = await updateTemplates([payload]);
+      const saved = updated.find((item) => item.id === editingTemplate.id) ?? payload;
+      setTemplates((curr) => curr.map((item) => (item.id === editingTemplate.id ? saved : item)));
+      setEditingTemplate(null);
+    } catch {
+      setError("Failed to update template.");
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -53,29 +77,21 @@ export default function TemplatesPage() {
     }
   }
 
-  async function onUpdateTemplate(template: Template) {
-    setUpdatingId(template.id);
-    setError(null);
-    try {
-      const updated = await updateTemplates([template]);
-      const saved = updated.find((item) => item.id === template.id) ?? template;
-      setTemplates((curr) => curr.map((item) => (item.id === template.id ? saved : item)));
-    } catch {
-      setError("Failed to update template.");
-    } finally {
-      setUpdatingId(null);
-    }
-  }
-
   async function onDeleteTemplate(id: string) {
     if (!window.confirm("Delete this template?")) return;
     setError(null);
     try {
       await deleteTemplate(id);
       setTemplates((curr) => curr.filter((item) => item.id !== id));
+      if (editingTemplate?.id === id) setEditingTemplate(null);
     } catch {
       setError("Failed to delete template.");
     }
+  }
+
+  function openEdit(template: Template) {
+    setShowAddForm(false);
+    setEditingTemplate(template);
   }
 
   return (
@@ -83,20 +99,41 @@ export default function TemplatesPage() {
       <h2>Templates</h2>
       <p>Question templates used to generate quiz content.</p>
       <div className="h-row">
-        {!showAddForm ? (
+        {!formOpen ? (
           <button type="button" onClick={() => setShowAddForm(true)} disabled={loading}>
             Add template
           </button>
         ) : null}
       </div>
 
-      <AddTemplateForm
-        open={showAddForm}
-        disabled={loading || adding}
-        existingNames={templates.map((template) => template.name)}
-        onSubmit={(values) => void onAddTemplate(values)}
-        onCancel={() => setShowAddForm(false)}
-      />
+      {showAddForm ? (
+        <AddTemplateForm
+          open
+          disabled={loading}
+          submitting={submitting}
+          existingNames={templates.map((template) => template.name)}
+          onSubmit={(values) => void onAddTemplate(values)}
+          onCancel={() => setShowAddForm(false)}
+        />
+      ) : null}
+
+      {editingTemplate ? (
+        <AddTemplateForm
+          key={editingTemplate.id}
+          mode="edit"
+          open
+          disabled={loading}
+          submitting={submitting}
+          initialValues={{
+            name: editingTemplate.name,
+            prompt: editingTemplate.prompt,
+            active: editingTemplate.active,
+          }}
+          existingNames={templates.filter((t) => t.id !== editingTemplate.id).map((t) => t.name)}
+          onSubmit={(values) => void onEditTemplate(values)}
+          onCancel={() => setEditingTemplate(null)}
+        />
+      ) : null}
 
       {error ? <p className="error-text">{error}</p> : null}
       {loading ? <p>Loading...</p> : null}
@@ -139,9 +176,9 @@ export default function TemplatesPage() {
               </td>
               <td>
                 <RowActions
-                  onUpdate={() => void onUpdateTemplate(template)}
+                  onUpdate={() => openEdit(template)}
                   onDelete={() => void onDeleteTemplate(template.id)}
-                  updating={updatingId === template.id}
+                  updating={submitting && editingTemplate?.id === template.id}
                 />
               </td>
             </tr>

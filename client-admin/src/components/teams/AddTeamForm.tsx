@@ -11,6 +11,8 @@ export type AddTeamFormValues = {
 
 type AddTeamFormProps = {
   open: boolean;
+  mode?: "add" | "edit";
+  initialValues?: AddTeamFormValues;
   disabled?: boolean;
   submitting?: boolean;
   countryOptions: TeamCountryOption[];
@@ -28,22 +30,25 @@ const emptyForm = (): AddTeamFormValues => ({
 
 export default function AddTeamForm({
   open,
+  mode = "add",
+  initialValues,
   disabled = false,
   submitting = false,
   countryOptions,
   onSubmit,
   onCancel,
 }: AddTeamFormProps) {
+  const isEdit = mode === "edit";
   const [form, setForm] = useState<AddTeamFormValues>(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const isBusy = disabled || submitting;
 
   useEffect(() => {
     if (open) {
-      setForm(emptyForm());
+      setForm(isEdit && initialValues ? initialValues : emptyForm());
       setError(null);
     }
-  }, [open]);
+  }, [open, isEdit, initialValues]);
 
   if (!open) return null;
 
@@ -82,7 +87,7 @@ export default function AddTeamForm({
 
   return (
     <form className="add-form" onSubmit={handleSubmit} autoComplete="off">
-      <h3>Add team</h3>
+      <h3>{isEdit ? "Edit team" : "Add team"}</h3>
       <label htmlFor="team-name">Name</label>
       <input
         id="team-name"
@@ -128,7 +133,7 @@ export default function AddTeamForm({
       {error ? <p className="error-text">{error}</p> : null}
       <div className="h-row">
         <button type="submit" disabled={isBusy}>
-          {submitting ? "Adding..." : "Add team"}
+          {submitting ? "Saving..." : isEdit ? "Save changes" : "Add team"}
         </button>
         <button type="button" className="ghost" onClick={onCancel} disabled={isBusy}>
           Cancel

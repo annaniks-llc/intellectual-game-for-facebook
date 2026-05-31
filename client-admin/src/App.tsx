@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { getAdminMe } from "./api/authApi";
 import AppLayout from "./components/layout/AppLayout";
 import ProtectedRoute from "./components/layout/ProtectedRoute";
@@ -17,6 +17,16 @@ import ChangePasswordPage from "./components/pages/ChangePasswordPage";
 import { useAuth } from "./hooks/useAuth";
 import { useAppDispatch } from "./redux/hooks";
 import { logout, sessionValidated, setAuthReady } from "./redux/slices/authSlice";
+
+function TeamDetailRoute() {
+  const { id } = useParams();
+  return <TeamDetailPage key={id} />;
+}
+
+function AthleteDetailRoute() {
+  const { id } = useParams();
+  return <AthleteDetailPage key={id} />;
+}
 
 export default function App() {
   const dispatch = useAppDispatch();
@@ -79,9 +89,9 @@ export default function App() {
         <Route path="locales" element={<LocalesPage />} />
         <Route path="countries" element={<CountriesPage />} />
         <Route path="teams" element={<TeamsPage />} />
-        <Route path="teams/:id" element={<TeamDetailPage />} />
+        <Route path="teams/:id" element={<TeamDetailRoute />} />
         <Route path="athletes" element={<AthletesPage />} />
-        <Route path="athletes/:id" element={<AthleteDetailPage />} />
+        <Route path="athletes/:id" element={<AthleteDetailRoute />} />
         <Route path="positions" element={<PositionsPage />} />
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="change-password" element={<ChangePasswordPage />} />

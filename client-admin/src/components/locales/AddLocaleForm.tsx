@@ -8,6 +8,8 @@ export type AddLocaleFormValues = {
 
 type AddLocaleFormProps = {
   open: boolean;
+  mode?: "add" | "edit";
+  initialValues?: AddLocaleFormValues;
   disabled?: boolean;
   isFirstLocale: boolean;
   existingCodes: string[];
@@ -23,21 +25,24 @@ const emptyForm = (isFirstLocale: boolean): AddLocaleFormValues => ({
 
 export default function AddLocaleForm({
   open,
+  mode = "add",
+  initialValues,
   disabled = false,
   isFirstLocale,
   existingCodes,
   onSubmit,
   onCancel,
 }: AddLocaleFormProps) {
+  const isEdit = mode === "edit";
   const [form, setForm] = useState<AddLocaleFormValues>(() => emptyForm(isFirstLocale));
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
-      setForm(emptyForm(isFirstLocale));
+      setForm(isEdit && initialValues ? initialValues : emptyForm(isFirstLocale));
       setError(null);
     }
-  }, [open, isFirstLocale]);
+  }, [open, isEdit, initialValues, isFirstLocale]);
 
   if (!open) return null;
 
@@ -64,7 +69,7 @@ export default function AddLocaleForm({
 
   return (
     <form className="add-form" onSubmit={handleSubmit} autoComplete="off">
-      <h3>Add locale</h3>
+      <h3>{isEdit ? "Edit locale" : "Add locale"}</h3>
       <label htmlFor="locale-code">Locale code (BCP-47)</label>
       <input
         id="locale-code"
@@ -96,7 +101,7 @@ export default function AddLocaleForm({
       {error ? <p className="error-text">{error}</p> : null}
       <div className="h-row">
         <button type="submit" disabled={disabled}>
-          Add locale
+          {isEdit ? "Save changes" : "Add locale"}
         </button>
         <button type="button" className="ghost" onClick={onCancel} disabled={disabled}>
           Cancel

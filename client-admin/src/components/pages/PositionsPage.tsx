@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createPosition, deletePosition, getLocales, getPositions, updatePositions } from "../../api/adminApi";
+import { createPosition, deletePosition, getLocales, getPositions, updatePosition, updatePositions } from "../../api/adminApi";
 import AddPositionForm, { type AddPositionFormValues, type PositionLocaleOption } from "../positions/AddPositionForm";
 import RowActions from "../common/RowActions";
 import type { ContentLocale, Position } from "../../types";
@@ -11,8 +11,8 @@ export default function PositionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [editingPosition, setEditingPosition] = useState<Position | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -43,8 +43,10 @@ export default function PositionsPage() {
     [locales]
   );
 
+  const formOpen = showAddForm || editingPosition !== null;
+
   async function onAddPosition(values: AddPositionFormValues) {
-    setAdding(true);
+    setSubmitting(true);
     setError(null);
     try {
       const created = await createPosition(values);
@@ -53,21 +55,28 @@ export default function PositionsPage() {
     } catch {
       setError("Failed to create position.");
     } finally {
-      setAdding(false);
+      setSubmitting(false);
     }
   }
 
-  async function onUpdatePosition(position: Position) {
-    setUpdatingId(position.id);
+  async function onEditPosition(values: AddPositionFormValues) {
+    if (!editingPosition) return;
+    setSubmitting(true);
     setError(null);
     try {
-      const updated = await updatePositions([position]);
-      const saved = updated.find((item) => item.id === position.id) ?? position;
-      setPositions((curr) => curr.map((item) => (item.id === position.id ? saved : item)));
+      const payload: Position = {
+        ...editingPosition,
+        code: values.code.trim().toUpperCase(),
+        label: values.label.trim(),
+        localeCode: values.localeCode.trim().toLowerCase(),
+      };
+      const updated = await updatePosition(payload);
+      setPositions(updated);
+      setEditingPosition(null);
     } catch {
       setError("Failed to update position.");
     } finally {
-      setUpdatingId(null);
+      setSubmitting(false);
     }
   }
 
@@ -77,6 +86,7 @@ export default function PositionsPage() {
     try {
       await deletePosition(id);
       setPositions((curr) => curr.filter((item) => item.id !== id));
+      if (editingPosition?.id === id) setEditingPosition(null);
     } catch {
       setError("Failed to delete position.");
     }
@@ -94,31 +104,63 @@ export default function PositionsPage() {
     }
   }
 
+  function openEdit(position: Position) {
+    setShowAddForm(false);
+    setEditingPosition(position);
+  }
+
   return (
     <section className="panel">
       <h2>Positions</h2>
       <p>Position labels are stored per locale.</p>
       <div className="h-row">
-        {!showAddForm ? (
+        {!formOpen ? (
           <button type="button" onClick={() => setShowAddForm(true)} disabled={loading}>
             Add position
           </button>
         ) : null}
       </div>
 
-      <AddPositionForm
-        open={showAddForm}
-        disabled={loading}
-        submitting={adding}
-        defaultLocaleCode={defaultLocaleCode}
-        localeOptions={localeOptions}
-        existingEntries={positions.map((position) => ({
-          code: position.code,
-          localeCode: position.localeCode,
-        }))}
-        onSubmit={(values) => void onAddPosition(values)}
-        onCancel={() => setShowAddForm(false)}
-      />
+      {showAddForm ? (
+        <AddPositionForm
+          open
+          disabled={loading}
+          submitting={submitting}
+          defaultLocaleCode={defaultLocaleCode}
+          localeOptions={localeOptions}
+          existingEntries={positions.map((position) => ({
+            code: position.code,
+            localeCode: position.localeCode,
+          }))}
+          onSubmit={(values) => void onAddPosition(values)}
+          onCancel={() => setShowAddForm(false)}
+        />
+      ) : null}
+
+      {editingPosition ? (
+        <AddPositionForm
+          key={editingPosition.id}
+          mode="edit"
+          open
+          disabled={loading}
+          submitting={submitting}
+          defaultLocaleCode={editingPosition.localeCode}
+          localeOptions={localeOptions}
+          initialValues={{
+            code: editingPosition.code,
+            label: editingPosition.label,
+            localeCode: editingPosition.localeCode,
+          }}
+          existingEntries={positions
+            .filter((p) => p.id !== editingPosition.id)
+            .map((position) => ({
+              code: position.code,
+              localeCode: position.localeCode,
+            }))}
+          onSubmit={(values) => void onEditPosition(values)}
+          onCancel={() => setEditingPosition(null)}
+        />
+      ) : null}
 
       {error ? <p className="error-text">{error}</p> : null}
       {loading ? <p>Loading...</p> : null}
@@ -155,9 +197,9 @@ export default function PositionsPage() {
               </td>
               <td>
                 <RowActions
-                  onUpdate={() => void onUpdatePosition(position)}
+                  onUpdate={() => openEdit(position)}
                   onDelete={() => void onDeletePosition(position.id)}
-                  updating={updatingId === position.id}
+                  updating={submitting && editingPosition?.id === position.id}
                 />
               </td>
             </tr>

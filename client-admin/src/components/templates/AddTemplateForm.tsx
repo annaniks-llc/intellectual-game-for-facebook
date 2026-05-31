@@ -8,7 +8,10 @@ export type AddTemplateFormValues = {
 
 type AddTemplateFormProps = {
   open: boolean;
+  mode?: "add" | "edit";
+  initialValues?: AddTemplateFormValues;
   disabled?: boolean;
+  submitting?: boolean;
   existingNames: string[];
   onSubmit: (values: AddTemplateFormValues) => void;
   onCancel: () => void;
@@ -22,20 +25,25 @@ const emptyForm = (): AddTemplateFormValues => ({
 
 export default function AddTemplateForm({
   open,
+  mode = "add",
+  initialValues,
   disabled = false,
+  submitting = false,
   existingNames,
   onSubmit,
   onCancel,
 }: AddTemplateFormProps) {
+  const isEdit = mode === "edit";
   const [form, setForm] = useState<AddTemplateFormValues>(emptyForm);
   const [error, setError] = useState<string | null>(null);
+  const isBusy = disabled || submitting;
 
   useEffect(() => {
     if (open) {
-      setForm(emptyForm());
+      setForm(isEdit && initialValues ? initialValues : emptyForm());
       setError(null);
     }
-  }, [open]);
+  }, [open, isEdit, initialValues]);
 
   if (!open) return null;
 
@@ -53,7 +61,7 @@ export default function AddTemplateForm({
       setError("Template prompt is required.");
       return;
     }
-    if (existingNames.some((item) => item.toLowerCase() === name.toLowerCase())) {
+    if (!isEdit && existingNames.some((item) => item.toLowerCase() === name.toLowerCase())) {
       setError("A template with this name already exists.");
       return;
     }
@@ -63,7 +71,7 @@ export default function AddTemplateForm({
 
   return (
     <form className="add-form" onSubmit={handleSubmit} autoComplete="off">
-      <h3>Add template</h3>
+      <h3>{isEdit ? "Edit template" : "Add template"}</h3>
       <label htmlFor="template-name">Name</label>
       <input
         id="template-name"
@@ -71,7 +79,7 @@ export default function AddTemplateForm({
         placeholder="e.g. Top Scorer"
         value={form.name}
         onChange={(e) => setForm((curr) => ({ ...curr, name: e.target.value }))}
-        disabled={disabled}
+        disabled={isBusy}
         autoFocus
       />
       <label htmlFor="template-prompt">Prompt</label>
@@ -81,23 +89,23 @@ export default function AddTemplateForm({
         placeholder="e.g. Who is the top scorer for {team}?"
         value={form.prompt}
         onChange={(e) => setForm((curr) => ({ ...curr, prompt: e.target.value }))}
-        disabled={disabled}
+        disabled={isBusy}
       />
       <label className="checkbox-row">
         <input
           type="checkbox"
           checked={form.active}
           onChange={(e) => setForm((curr) => ({ ...curr, active: e.target.checked }))}
-          disabled={disabled}
+          disabled={isBusy}
         />
         Active
       </label>
       {error ? <p className="error-text">{error}</p> : null}
       <div className="h-row">
-        <button type="submit" disabled={disabled}>
-          Add template
+        <button type="submit" disabled={isBusy}>
+          {submitting ? "Saving..." : isEdit ? "Save changes" : "Add template"}
         </button>
-        <button type="button" className="ghost" onClick={onCancel} disabled={disabled}>
+        <button type="button" className="ghost" onClick={onCancel} disabled={isBusy}>
           Cancel
         </button>
       </div>

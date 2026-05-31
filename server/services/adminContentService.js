@@ -2,8 +2,32 @@ export function listLocales(db) {
   return db("locales").select("*").orderBy("id", "asc");
 }
 
-export async function upsertLocale(db, { code, name, isEnabled }) {
-  const existing = await db("locales").where({ code }).first();
+export async function upsertLocale(db, { code, name, isEnabled, previousCode }) {
+  const normalizedCode = String(code).trim().toLowerCase();
+  const normalizedPrevious = previousCode ? String(previousCode).trim().toLowerCase() : "";
+
+  if (normalizedPrevious && normalizedPrevious !== normalizedCode) {
+    const row = await db("locales").where({ code: normalizedPrevious }).first();
+    if (!row) return { id: null, created: false, renamed: false, notFound: true };
+
+    const conflict = await db("locales")
+      .where({ code: normalizedCode })
+      .whereNot({ id: row.id })
+      .first();
+    if (conflict) return { id: null, created: false, renamed: false, conflict: true };
+
+    await db("locales")
+      .where({ id: row.id })
+      .update({
+        code: normalizedCode,
+        name,
+        is_enabled: isEnabled,
+        updated_at: db.fn.now(),
+      });
+    return { id: row.id, created: false, renamed: true };
+  }
+
+  const existing = await db("locales").where({ code: normalizedCode }).first();
   if (existing) {
     await db("locales")
       .where({ id: existing.id })
@@ -12,17 +36,17 @@ export async function upsertLocale(db, { code, name, isEnabled }) {
         is_enabled: isEnabled,
         updated_at: db.fn.now(),
       });
-    return { id: existing.id, created: false };
+    return { id: existing.id, created: false, renamed: false };
   }
 
   const [id] = await db("locales").insert({
-    code,
+    code: normalizedCode,
     name,
     is_enabled: isEnabled,
     created_at: db.fn.now(),
     updated_at: db.fn.now(),
   });
-  return { id, created: true };
+  return { id, created: true, renamed: false };
 }
 
 export async function deleteLocaleByCode(db, code) {
@@ -34,22 +58,45 @@ export function listCountries(db) {
   return db("countries").select("*").orderBy("id", "asc");
 }
 
-export async function upsertCountry(db, { code, defaultName }) {
-  const existing = await db("countries").where({ code }).first();
+export async function upsertCountry(db, { code, defaultName, previousCode }) {
+  const normalizedCode = String(code).trim().toUpperCase();
+  const normalizedPrevious = previousCode ? String(previousCode).trim().toUpperCase() : "";
+
+  if (normalizedPrevious && normalizedPrevious !== normalizedCode) {
+    const row = await db("countries").where({ code: normalizedPrevious }).first();
+    if (!row) return { id: null, created: false, renamed: false, notFound: true };
+
+    const conflict = await db("countries")
+      .where({ code: normalizedCode })
+      .whereNot({ id: row.id })
+      .first();
+    if (conflict) return { id: null, created: false, renamed: false, conflict: true };
+
+    await db("countries")
+      .where({ id: row.id })
+      .update({
+        code: normalizedCode,
+        default_name: defaultName,
+        updated_at: db.fn.now(),
+      });
+    return { id: row.id, created: false, renamed: true };
+  }
+
+  const existing = await db("countries").where({ code: normalizedCode }).first();
   if (existing) {
     await db("countries")
       .where({ id: existing.id })
       .update({ default_name: defaultName, updated_at: db.fn.now() });
-    return { id: existing.id, created: false };
+    return { id: existing.id, created: false, renamed: false };
   }
 
   const [id] = await db("countries").insert({
-    code,
+    code: normalizedCode,
     default_name: defaultName,
     created_at: db.fn.now(),
     updated_at: db.fn.now(),
   });
-  return { id, created: true };
+  return { id, created: true, renamed: false };
 }
 
 export async function deleteCountryByCode(db, code) {
@@ -115,6 +162,27 @@ export function listPositionLabels(db) {
 
 export function findLocaleByCode(db, code) {
   return db("locales").where({ code }).first();
+}
+
+export async function updatePositionLabelById(db, { id, positionCode, localeId, label }) {
+  const row = await db("position_labels").where({ id }).first();
+  if (!row) return { id: null, created: false, notFound: true };
+
+  const conflict = await db("position_labels")
+    .where({ position_code: positionCode, locale_id: localeId })
+    .whereNot({ id })
+    .first();
+  if (conflict) return { id: null, created: false, conflict: true };
+
+  await db("position_labels")
+    .where({ id })
+    .update({
+      position_code: positionCode,
+      locale_id: localeId,
+      label,
+      updated_at: db.fn.now(),
+    });
+  return { id, created: false };
 }
 
 export async function upsertPositionLabel(db, { positionCode, localeId, label }) {
