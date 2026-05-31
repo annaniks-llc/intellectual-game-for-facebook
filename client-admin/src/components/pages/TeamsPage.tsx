@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { createTeam, deleteTeam, getTeamCountryOptions, getTeams, type TeamCountryOption } from "../../api/adminApi";
 import AddTeamForm, { type AddTeamFormValues } from "../teams/AddTeamForm";
+import RowActions from "../common/RowActions";
 import type { Team } from "../../types";
 
 export default function TeamsPage() {
@@ -97,11 +97,10 @@ export default function TeamsPage() {
               <td>{team.countryCode}</td>
               <td>{team.localizations.length}</td>
               <td>
-                <Link to={`/teams/${team.id}`}>Open</Link>
-                {" | "}
-                <button type="button" className="ghost" onClick={() => void onDeleteTeam(team.id)}>
-                  Delete
-                </button>
+                <RowActions
+                  updateHref={`/teams/${team.id}`}
+                  onDelete={() => void onDeleteTeam(team.id)}
+                />
               </td>
             </tr>
           ))}

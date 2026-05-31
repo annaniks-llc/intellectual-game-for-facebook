@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import {
   createAthlete,
   deleteAthlete,
@@ -8,6 +7,7 @@ import {
   type AthleteTeamOption,
 } from "../../api/adminApi";
 import AddAthleteForm, { type AddAthleteFormValues } from "../athletes/AddAthleteForm";
+import RowActions from "../common/RowActions";
 import type { Athlete } from "../../types";
 
 export default function AthletesPage() {
@@ -105,11 +105,10 @@ export default function AthletesPage() {
               <td>{athlete.teamShortName || athlete.teamName || athlete.teamId}</td>
               <td>{athlete.position}</td>
               <td>
-                <Link to={`/athletes/${athlete.id}`}>Open</Link>
-                {" | "}
-                <button type="button" className="ghost" onClick={() => void onDeleteAthlete(athlete.id)}>
-                  Delete
-                </button>
+                <RowActions
+                  updateHref={`/athletes/${athlete.id}`}
+                  onDelete={() => void onDeleteAthlete(athlete.id)}
+                />
               </td>
             </tr>
           ))}

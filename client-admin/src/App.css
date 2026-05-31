@@ -175,6 +175,13 @@ button.ghost {
   color: #0f172a;
 }
 
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 button.secondary {
   background: #475569;
 }

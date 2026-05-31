@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createTemplate, deleteTemplate, getTemplates, updateTemplates } from "../../api/adminApi";
 import AddTemplateForm, { type AddTemplateFormValues } from "../templates/AddTemplateForm";
+import RowActions from "../common/RowActions";
 import type { Template } from "../../types";
 
 export default function TemplatesPage() {
@@ -10,6 +11,7 @@ export default function TemplatesPage() {
   const [saving, setSaving] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -48,6 +50,20 @@ export default function TemplatesPage() {
       setError("Failed to save templates.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onUpdateTemplate(template: Template) {
+    setUpdatingId(template.id);
+    setError(null);
+    try {
+      const updated = await updateTemplates([template]);
+      const saved = updated.find((item) => item.id === template.id) ?? template;
+      setTemplates((curr) => curr.map((item) => (item.id === template.id ? saved : item)));
+    } catch {
+      setError("Failed to update template.");
+    } finally {
+      setUpdatingId(null);
     }
   }
 
@@ -122,9 +138,11 @@ export default function TemplatesPage() {
                 />
               </td>
               <td>
-                <button type="button" className="ghost" onClick={() => void onDeleteTemplate(template.id)}>
-                  Delete
-                </button>
+                <RowActions
+                  onUpdate={() => void onUpdateTemplate(template)}
+                  onDelete={() => void onDeleteTemplate(template.id)}
+                  updating={updatingId === template.id}
+                />
               </td>
             </tr>
           ))}

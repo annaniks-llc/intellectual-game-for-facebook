@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createCountry, deleteCountry, getCountries, getLocales, updateCountries } from "../../api/adminApi";
 import AddCountryForm, { type AddCountryFormValues } from "../countries/AddCountryForm";
+import RowActions from "../common/RowActions";
 import type { AdminCountryRow, ContentLocale } from "../../types";
 
 export default function CountriesPage() {
@@ -11,6 +12,7 @@ export default function CountriesPage() {
   const [saving, setSaving] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [updatingCode, setUpdatingCode] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -57,6 +59,20 @@ export default function CountriesPage() {
       setError("Failed to create country.");
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function onUpdateCountry(row: AdminCountryRow) {
+    setUpdatingCode(row.code);
+    setError(null);
+    try {
+      const updated = await updateCountries([row]);
+      const saved = updated.find((item) => item.code === row.code) ?? row;
+      setCountries((curr) => curr.map((item) => (item.code === row.code ? saved : item)));
+    } catch {
+      setError("Failed to update country.");
+    } finally {
+      setUpdatingCode(null);
     }
   }
 
@@ -142,9 +158,11 @@ export default function CountriesPage() {
                 </td>
               ))}
               <td>
-                <button type="button" className="ghost" onClick={() => void onDeleteCountry(row.code)}>
-                  Delete
-                </button>
+                <RowActions
+                  onUpdate={() => void onUpdateCountry(row)}
+                  onDelete={() => void onDeleteCountry(row.code)}
+                  updating={updatingCode === row.code}
+                />
               </td>
             </tr>
           ))}
