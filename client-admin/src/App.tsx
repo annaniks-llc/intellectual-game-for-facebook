@@ -51,7 +51,7 @@ export default function App() {
           return;
         }
 
-        dispatch(sessionValidated({ username: user.email }));
+        dispatch(sessionValidated({ username: user.email, role: user.role }));
       } catch {
         if (cancelled) return;
         dispatch(logout());
