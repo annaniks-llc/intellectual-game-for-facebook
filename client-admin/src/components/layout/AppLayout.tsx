@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAppDispatch } from "../../redux/hooks";
 import { logout } from "../../redux/slices/authSlice";
 import { useAuth } from "../../hooks/useAuth";
+import { useTheme } from "../../hooks/useTheme";
 
 const nav = [
   { to: "/locales", label: "Locales" },
@@ -17,6 +18,7 @@ export default function AppLayout() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const { username } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <div className="app-shell">
@@ -28,6 +30,14 @@ export default function AppLayout() {
             {item.label}
           </NavLink>
         ))}
+        <button
+          type="button"
+          className="theme-toggle"
+          onClick={toggleTheme}
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {theme === "dark" ? "☀️ Light mode" : "🌙 Dark mode"}
+        </button>
         <button
           type="button"
           className="ghost"
