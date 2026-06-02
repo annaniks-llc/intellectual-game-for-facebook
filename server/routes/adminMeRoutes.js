@@ -6,6 +6,7 @@ export function createAdminMeRoutes(db) {
   const admin = createAdminAuthController(db);
 
   router.get("/me", admin.adminGuard, admin.me);
+  router.put("/me", admin.adminGuard, admin.updateMe);
 
   return router;
 }
