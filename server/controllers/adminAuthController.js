@@ -10,7 +10,12 @@ import { mapRoleForStorage } from "../services/roleStorageService.js";
 import { sendPasswordCodeEmail } from "../services/mailService.js";
 import { consumePasswordCode, issuePasswordCode } from "../services/twoFactorService.js";
 import { findUserByEmail } from "../services/userService.js";
-import { findAdminById, updateUserPasswordHash, getAdminProfileById } from "../services/adminAuthService.js";
+import {
+  findAdminById,
+  updateUserPasswordHash,
+  getAdminProfileById,
+  updateAdminProfileById,
+} from "../services/adminAuthService.js";
 
 export function createAdminAuthController(db) {
   async function login(req, res) {
@@ -131,6 +136,26 @@ export function createAdminAuthController(db) {
     me: async (req, res) => {
       const user = await getAdminProfileById(db, Number(req.auth.sub));
       return res.json({ user: user || null });
+    },
+    updateMe: async (req, res) => {
+      const userId = Number(req.auth.sub);
+      const firstName = String(req.body?.firstName || "").trim();
+      const lastName = String(req.body?.lastName || "").trim();
+      const photoUrl = String(req.body?.photoUrl || "").trim();
+
+      if (!firstName || !lastName) {
+        return res.status(400).json({ error: "firstName and lastName are required" });
+      }
+
+      try {
+        const profile = await updateAdminProfileById(db, userId, { firstName, lastName, photoUrl });
+        return res.json({ user: profile || null });
+      } catch (error) {
+        if (error && typeof error === "object" && "code" in error && error.code === "ER_DATA_TOO_LONG") {
+          return res.status(400).json({ error: "Photo is too large. Please choose a smaller image." });
+        }
+        throw error;
+      }
     },
     adminGuard: authGuard(ROLE_ADMIN),
   };

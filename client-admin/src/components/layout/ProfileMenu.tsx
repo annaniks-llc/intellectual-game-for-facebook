@@ -7,12 +7,18 @@ import { useAuth } from "../../hooks/useAuth";
 export default function ProfileMenu() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const { username, role } = useAuth();
+  const { username, role, firstName, lastName, photoUrl } = useAuth();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const email = username ?? "admin";
-  const initial = email.trim().charAt(0).toUpperCase() || "?";
+  const displayName = [firstName, lastName].filter(Boolean).join(" ").trim() || email;
+  const initial = displayName.trim().charAt(0).toUpperCase() || "?";
+
+  function handleProfile() {
+    setOpen(false);
+    navigate("/profile");
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -49,6 +55,9 @@ export default function ProfileMenu() {
     <div className="profile" ref={containerRef}>
       {open && (
         <div className="profile-popup" role="menu">
+          <button type="button" className="profile-popup-item" role="menuitem" onClick={handleProfile}>
+            Profile
+          </button>
           <button type="button" className="profile-popup-item" role="menuitem" onClick={handleChangePassword}>
             Change Password
           </button>
@@ -65,10 +74,10 @@ export default function ProfileMenu() {
         aria-expanded={open}
       >
         <span className="avatar" aria-hidden="true">
-          {initial}
+          {photoUrl ? <img src={photoUrl} alt="Profile" className="avatar-image" /> : initial}
         </span>
         <span className="profile-info">
-          <span className="profile-email">{email}</span>
+          <span className="profile-email">{displayName}</span>
           <span className="profile-role">{role ?? "Admin"}</span>
         </span>
       </button>

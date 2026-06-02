@@ -14,6 +14,7 @@ import TeamDetailPage from "./components/pages/TeamDetailPage";
 import TeamsPage from "./components/pages/TeamsPage";
 import TemplatesPage from "./components/pages/TemplatesPage";
 import ChangePasswordPage from "./components/pages/ChangePasswordPage";
+import ProfilePage from "./components/pages/ProfilePage";
 import { useAuth } from "./hooks/useAuth";
 import { useAppDispatch } from "./redux/hooks";
 import { logout, sessionValidated, setAuthReady } from "./redux/slices/authSlice";
@@ -51,7 +52,15 @@ export default function App() {
           return;
         }
 
-        dispatch(sessionValidated({ username: user.email, role: user.role }));
+        dispatch(
+          sessionValidated({
+            username: user.email,
+            role: user.role,
+            firstName: user.first_name ?? null,
+            lastName: user.last_name ?? null,
+            photoUrl: user.photo_url ?? null,
+          }),
+        );
       } catch {
         if (cancelled) return;
         dispatch(logout());
@@ -94,6 +103,7 @@ export default function App() {
         <Route path="athletes/:id" element={<AthleteDetailRoute />} />
         <Route path="positions" element={<PositionsPage />} />
         <Route path="templates" element={<TemplatesPage />} />
+        <Route path="profile" element={<ProfilePage />} />
         <Route path="change-password" element={<ChangePasswordPage />} />
       </Route>
       <Route path="*" element={<Navigate to={isAuthenticated ? "/" : "/login"} replace />} />

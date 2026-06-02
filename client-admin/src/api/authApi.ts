@@ -5,9 +5,17 @@ export type AdminMeUser = {
   id: number;
   email: string;
   role: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  photo_url?: string | null;
 };
 
 export type AdminMeResponse = { user: AdminMeUser | null };
+export type UpdateAdminProfileRequest = {
+  firstName: string;
+  lastName: string;
+  photoUrl?: string;
+};
 
 export type LoginRequest = { email: string; password: string };
 export type LoginResponse = { token: string; username: string };
@@ -60,6 +68,11 @@ export async function login(payload: LoginRequest): Promise<LoginResponse> {
 
 export async function getAdminMe(): Promise<AdminMeResponse> {
   const { data } = await adminMeHttp.get<AdminMeResponse>("/me");
+  return data;
+}
+
+export async function updateAdminMe(payload: UpdateAdminProfileRequest): Promise<AdminMeResponse> {
+  const { data } = await adminMeHttp.put<AdminMeResponse>("/me", payload);
   return data;
 }
 

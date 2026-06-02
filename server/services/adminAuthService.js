@@ -25,8 +25,22 @@ export async function updateUserPasswordHash(db, userId, passwordHash) {
 
 export function getAdminProfileById(db, userId) {
   return db("users")
-    .select("id", "email", "role", "created_at", "updated_at")
+    .select("id", "email", "role", "first_name", "last_name", "photo_url", "created_at", "updated_at")
     .where({ id: userId })
     .whereIn("role", [ROLE_ADMIN, 1, "1"])
     .first();
+}
+
+export async function updateAdminProfileById(db, userId, { firstName, lastName, photoUrl }) {
+  await db("users")
+    .where({ id: userId })
+    .whereIn("role", [ROLE_ADMIN, 1, "1"])
+    .update({
+      first_name: firstName,
+      last_name: lastName,
+      photo_url: photoUrl || null,
+      updated_at: db.fn.now(),
+    });
+
+  return getAdminProfileById(db, userId);
 }
